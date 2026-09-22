@@ -454,13 +454,17 @@ orden = (limpio.groupby("zona", observed=True).precio_m2.median()
 
 fig, ax = plt.subplots(figsize=(8.5, 4))
 datos_box = [limpio.loc[limpio.zona == z, "precio_m2"] / 1e6 for z in orden]
-bp = ax.boxplot(datos_box, labels=orden, patch_artist=True, showfliers=False,
+bp = ax.boxplot(datos_box, patch_artist=True, showfliers=False,
                 medianprops=dict(color="#12304F", linewidth=1.6))
 for caja in bp["boxes"]:
     caja.set(facecolor="#D7E8EA", edgecolor="#17808C")
+
+# Las etiquetas se ponen aparte: el argumento `labels` de boxplot() cambió
+# de nombre en matplotlib 3.9 y desapareció en la 3.11.
+ax.set_xticks(range(1, len(orden) + 1))
+ax.set_xticklabels(orden, rotation=30, ha="right")
 ax.set_ylabel("Precio por m² (millones COP)")
 ax.set_xlabel("")
-plt.xticks(rotation=30, ha="right")
 plt.tight_layout()
 plt.show()
 ```

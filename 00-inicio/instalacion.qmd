@@ -82,12 +82,32 @@ for nombre in paquetes:
 ::: {.callout-note appearance="simple"}
 ## Versiones mínimas
 
-El material se probó con `scikit-learn ≥ 1.3`, `pandas ≥ 2.0` y `numpy ≥ 1.24`.
-Con versiones anteriores de scikit-learn cambia el nombre de algunos
-parámetros: por ejemplo, `OneHotEncoder(sparse_output=False)` se llamaba
-`sparse=False` antes de la 1.2, y `get_feature_names_out()` no existía antes de
-la 1.0. Si ves un `TypeError` con el nombre de un argumento, es casi seguro un
-problema de versión.
+El material requiere `scikit-learn ≥ 1.4`, `pandas ≥ 2.0` y `numpy ≥ 1.24`, y
+está probado con las versiones de 2026 (`pandas` 3.0, `scikit-learn` 1.9,
+`matplotlib` 3.11).
+
+Los mínimos importan. `root_mean_squared_error()` aparece en scikit-learn 1.4;
+`OneHotEncoder(sparse_output=False)` se llamaba `sparse=False` antes de la 1.2.
+**Si ves un `TypeError` que menciona el nombre de un argumento, casi siempre es
+un desajuste de versión, no un error de tu código.**
+:::
+
+::: {.callout-tip collapse="true"}
+## Cuando una librería cambia de API bajo tus pies
+
+Las librerías científicas renombran y eliminan argumentos entre versiones. Un
+ejemplo real de este mismo curso: `ax.boxplot(datos, labels=nombres)` funcionó
+durante años, se marcó como obsoleto en `matplotlib` 3.9 y **dejó de existir**
+en la 3.11. El código no cambió; el entorno sí.
+
+Dos hábitos que te ahorran esa clase de sorpresa:
+
+1.  **Registra las versiones con las que obtuviste tus resultados.** Un
+    `pip freeze > versiones.txt` junto al informe basta, y en las actividades
+    del curso cuenta como parte de la reproducibilidad.
+2.  **Lee el mensaje de error completo.** `got an unexpected keyword argument
+    'labels'` no dice «mi código está mal»: dice «esta versión no conoce ese
+    argumento». La documentación oficial de *tu* versión tiene la respuesta.
 :::
 
 ## Opción B · R con tidymodels

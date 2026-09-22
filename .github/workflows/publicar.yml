@@ -37,6 +37,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Deja constancia de con qué versiones se construyó este sitio.
+      # Si un render falla en el futuro por un cambio de API, este paso dice
+      # exactamente qué versión lo introdujo.
+      - name: Registrar versiones
+        run: |
+          python -c "import sys; print('Python', sys.version)"
+          pip list --format=columns | grep -Ei 'pandas|numpy|scikit-learn|matplotlib|seaborn|plotly|statsmodels'
+
       - name: Renderizar el sitio
         run: quarto render
 
