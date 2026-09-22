@@ -1,0 +1,870 @@
+---
+title: "Cuadernillo 4 · Clasificar para tomar decisiones"
+subtitle: "Encuentro virtual 4 — Probabilidad, umbral, matriz de confusión, ROC y comparación de clasificadores"
+description: "Regresión logística, umbral de decisión, matriz de confusión, sensibilidad, especificidad, precisión, F1, ROC, AUC, árboles, Random Forest y k-NN."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Encuentro</span><span class="vl">Virtual 4</span></div>
+<div class="ficha-item"><span class="et">Semana</span><span class="vl">5</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">2 · Modelos supervisados</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">120–150 minutos</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span><span class="ra ra-15">RA15</span></span></div>
+<div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 3 · Clasificación y desempeño (20 %)</span></div>
+</div>
+<hr>
+<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (train/test, modelo base), <a href="../02-preprocesamiento/cuadernillo-02.html">Cuadernillo 2</a> (<code>Pipeline</code>, fuga) y <a href="../03-regresion/cuadernillo-03.html">Cuadernillo 3</a> (validación cruzada, regularización).</div>
+</div>
+```
+
+## La pregunta detonante
+
+> El jefe de operaciones prueba el sistema durante una semana. Al final te
+> escribe:
+>
+> *«El modelo acierta el 91 % de las veces, pero en cinco días no me avisó de
+> ninguna ausencia larga. Tuve tres turnos sin cubrir. ¿Para qué sirve?»*
+>
+> **El modelo tiene razón el 91 % de las veces y aun así es inútil. ¿Cómo es
+> posible, y cómo se arregla?**
+
+Este cuadernillo responde esas dos preguntas. La respuesta a la primera es el
+desbalance de clases. La respuesta a la segunda —que sorprende a mucha gente—
+**no** es cambiar de modelo: es mover el umbral.
+
+## Preparación del problema
+
+```{python}
+#| label: setup
+#| code-summary: "Configuración, datos y definición de la variable objetivo"
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
+
+SEMILLA = 42
+np.random.seed(SEMILLA)
+plt.rcParams.update({"figure.figsize": (7, 4.2), "axes.grid": True,
+                     "grid.alpha": 0.25, "axes.spines.top": False,
+                     "axes.spines.right": False, "font.size": 10})
+
+ausentismo = pd.read_csv("../datos/crudos/ausentismo_laboral.csv")
+
+# Los registros con 0 horas son fallas disciplinarias, no ausencias.
+eventos = ausentismo[ausentismo.horas_ausencia > 0].copy()
+eventos["ausencia_prolongada"] = (eventos.horas_ausencia > 8).astype(int)
+
+print(f"Eventos de ausencia: {len(eventos)}")
+print(f"Prolongadas (> 8 h): {eventos.ausencia_prolongada.sum()} "
+      f"({eventos.ausencia_prolongada.mean():.1%})")
+print(f"Empleados distintos: {eventos.id_empleado.nunique()}")
+```
+
+::: {.callout-warning appearance="simple"}
+## Dos variables que no pueden entrar al modelo
+
+`falla_disciplinaria` vale 1 exactamente cuando `horas_ausencia` es 0: es otra
+escritura de la respuesta, no un predictor. Ya la excluimos al filtrar.
+
+`id_empleado` identifica a la persona. Incluirlo permitiría al modelo
+«reconocer» trabajadores en lugar de aprender un patrón generalizable, y además
+impediría aplicar el modelo a un empleado nuevo. Lo dejamos fuera —pero volverá
+en el [Cuadernillo 5](../05-validacion/cuadernillo-05.qmd), donde veremos que
+su existencia rompe un supuesto de la validación cruzada.
+:::
+
+### El motivo reportado: agrupar categorías raras
+
+```{python}
+#| label: motivo
+#| code-summary: "Agrupación de la variable de motivo"
+frecuencias = eventos.motivo_cod.value_counts()
+motivos_frecuentes = frecuencias[frecuencias >= 20].index
+
+eventos["motivo"] = np.where(eventos.motivo_cod.isin(motivos_frecuentes),
+                             "M" + eventos.motivo_cod.astype(str),
+                             "OTROS")
+
+catalogo = {
+    "M10": "Sistema respiratorio", "M11": "Sistema digestivo",
+    "M13": "Sistema osteomuscular", "M18": "Síntomas y signos no clasificados",
+    "M19": "Lesiones y traumatismos", "M22": "Seguimiento médico",
+    "M23": "Consulta médica", "M25": "Examen de laboratorio",
+    "M26": "Ausencia injustificada", "M27": "Fisioterapia",
+    "M28": "Consulta odontológica", "OTROS": "Categorías con menos de 20 casos",
+}
+
+resumen_motivo = (eventos.groupby("motivo")
+                  .agg(eventos=("ausencia_prolongada", "size"),
+                       prolongadas=("ausencia_prolongada", "sum"),
+                       tasa=("ausencia_prolongada", "mean"))
+                  .assign(descripcion=lambda d: d.index.map(catalogo))
+                  .sort_values("tasa", ascending=False))
+resumen_motivo.style.format({"tasa": "{:.1%}"})
+```
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">La tabla ya contiene la respuesta del negocio</span><span class="tiempo">10 min</span></div>
+<p>Mira la columna <code>tasa</code> de la tabla anterior.</p>
+<ol>
+<li>¿Qué tipo de motivos concentran las ausencias prolongadas? ¿Tiene sentido clínico y operativo?</li>
+<li>¿Qué motivos casi nunca producen ausencias largas? ¿Por qué?</li>
+<li>Con solo esta tabla, sin ningún modelo, ¿qué regla le darías al jefe de operaciones mañana mismo?</li>
+<li>Si esa regla simple funciona, ¿qué tendría que aportar un modelo para justificar su existencia?</li>
+</ol>
+<p>La pregunta 4 es la más importante del cuadernillo. Un modelo que no supera a una regla de negocio evidente no debe implementarse.</p></div>
+```
+
+### Partición y pipeline
+
+```{python}
+#| label: particion
+#| code-summary: "Predictoras, partición estratificada y preprocesamiento"
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+
+cols_num = ["gasto_transporte", "distancia_km", "antiguedad_anios", "edad",
+            "carga_trabajo_dia", "cumplimiento_meta", "n_hijos", "n_mascotas"]
+cols_cat = ["motivo", "dia_semana", "estacion", "educacion"]
+
+X = eventos[cols_num + cols_cat]
+y = eventos["ausencia_prolongada"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.30, stratify=y, random_state=SEMILLA)
+
+preprocesador = ColumnTransformer([
+    ("num", Pipeline([("imputar", SimpleImputer(strategy="median")),
+                      ("escalar", StandardScaler())]), cols_num),
+    ("cat", OneHotEncoder(handle_unknown="ignore", drop="first",
+                          sparse_output=False), cols_cat),
+])
+
+print(f"Entrenamiento: {len(X_train)} eventos · {y_train.sum()} prolongadas "
+      f"({y_train.mean():.1%})")
+print(f"Prueba:        {len(X_test)} eventos · {y_test.sum()} prolongadas "
+      f"({y_test.mean():.1%})")
+```
+
+::: {.callout-note appearance="simple"}
+## Con 19 positivos en prueba, cada caso vale 5 puntos porcentuales
+
+El conjunto de prueba tiene solo `{python} int(y_test.sum())` ausencias
+prolongadas. Eso significa que acertar o fallar **un solo caso** mueve la
+sensibilidad en más de cinco puntos porcentuales.
+
+Es una limitación real de estos datos y hay que declararla: las diferencias
+pequeñas entre modelos no son distinguibles del ruido muestral. En el
+[Cuadernillo 5](../05-validacion/cuadernillo-05.qmd) usamos validación cruzada
+justamente para reducir esa fragilidad.
+:::
+
+## Parte 1 · La regresión logística predice probabilidades, no clases
+
+La regresión lineal no sirve aquí: predeciría valores fuera de $[0,1]$. La
+logística modela el **logit** de la probabilidad como función lineal:
+
+$$
+\log\!\left(\frac{p}{1-p}\right) = \beta_0 + \beta_1 x_1 + \dots + \beta_p x_p
+\qquad\Longleftrightarrow\qquad
+p = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x_1 + \dots)}}
+$$
+
+El cociente $p/(1-p)$ son las **odds** (la razón de probabilidades). Un
+coeficiente $\beta_j$ significa: por cada unidad adicional de $x_j$, las odds se
+multiplican por $e^{\beta_j}$.
+
+```{python}
+#| label: logistica
+#| code-summary: "Ajuste de la regresión logística"
+from sklearn.linear_model import LogisticRegression
+
+logistica = Pipeline([
+    ("prep", preprocesador),
+    ("modelo", LogisticRegression(max_iter=2000, random_state=SEMILLA)),
+])
+logistica.fit(X_train, y_train)
+
+probabilidades = logistica.predict_proba(X_test)[:, 1]
+
+print("Probabilidad estimada de ausencia prolongada, primeros 8 casos de prueba:")
+print(np.round(probabilidades[:8], 3))
+print(f"\nRango de probabilidades predichas: "
+      f"[{probabilidades.min():.3f} ; {probabilidades.max():.3f}]")
+```
+
+### Interpretación: razones de momios
+
+```{python}
+#| label: odds-ratio
+#| code-summary: "Coeficientes convertidos a razones de momios"
+nombres = logistica.named_steps["prep"].get_feature_names_out()
+coeficientes = logistica.named_steps["modelo"].coef_[0]
+
+tabla_or = (pd.DataFrame({
+        "variable": [n.split("__")[-1] for n in nombres],
+        "coeficiente": coeficientes,
+        "razón de momios": np.exp(coeficientes)})
+    .sort_values("razón de momios", ascending=False))
+
+pd.concat([tabla_or.head(5), tabla_or.tail(5)]).style.format(
+    {"coeficiente": "{:.3f}", "razón de momios": "{:.2f}"}).hide(axis="index")
+```
+
+::: {.callout-tip appearance="simple"}
+## Cómo se lee una razón de momios
+
+- **Mayor que 1**: la categoría o el aumento de la variable **incrementa** las
+  odds de ausencia prolongada. Un valor de 4,4 significa que las odds se
+  multiplican por 4,4.
+- **Menor que 1**: las **reduce**. Un valor de 0,26 significa que las odds caen
+  a poco más de la cuarta parte.
+- **Igual a 1**: sin asociación.
+
+Para las variables numéricas, que fueron estandarizadas, la unidad es **una
+desviación estándar**, no la unidad original. Es un detalle que se olvida con
+frecuencia y produce interpretaciones absurdas.
+
+Y una advertencia que vale para toda la tabla: con 44 casos positivos en
+entrenamiento, varias de estas estimaciones son muy inestables. Son pistas para
+explorar, no conclusiones.
+:::
+
+## Parte 2 · El umbral: la decisión que casi nadie toma conscientemente
+
+El modelo entrega una probabilidad. Convertirla en una decisión requiere un
+**umbral**. `predict()` usa 0,5 por defecto —y ese valor por defecto es el
+origen del problema del jefe de operaciones.
+
+```{python}
+#| label: umbral-defecto
+#| code-summary: "Qué pasa con el umbral por defecto"
+from sklearn.metrics import (accuracy_score, recall_score, precision_score,
+                             f1_score, confusion_matrix, roc_auc_score)
+
+pred_05 = (probabilidades >= 0.5).astype(int)
+vn, fp, fn, vp = confusion_matrix(y_test, pred_05).ravel()
+
+print(f"Exactitud:     {accuracy_score(y_test, pred_05):.1%}")
+print(f"Sensibilidad:  {recall_score(y_test, pred_05):.1%}")
+print(f"AUC:           {roc_auc_score(y_test, probabilidades):.3f}")
+print(f"\nDe {y_test.sum()} ausencias prolongadas reales, el modelo detectó {vp}.")
+print(f"El AUC de {roc_auc_score(y_test, probabilidades):.2f} dice que el modelo "
+      f"SÍ ordena bien los casos por riesgo.")
+print("El problema no es el modelo: es dónde pusimos la línea de corte.")
+```
+
+### La matriz de confusión y las cinco métricas que salen de ella
+
+```{python}
+#| label: matriz-confusion
+#| echo: false
+matriz = pd.DataFrame(
+    [[f"VN = {vn}", f"FP = {fp}"], [f"FN = {fn}", f"VP = {vp}"]],
+    index=["Real: ausencia corta", "Real: ausencia prolongada"],
+    columns=["Predicho: corta", "Predicho: prolongada"])
+matriz.style.set_caption("Matriz de confusión con umbral 0,5")
+```
+
+| Métrica | Fórmula | Pregunta que responde | Cuándo es la métrica clave |
+|---|---|---|---|
+| **Exactitud** | $\frac{VP+VN}{n}$ | ¿Qué proporción de casos se clasificó bien? | Solo con clases equilibradas y costos simétricos |
+| **Sensibilidad** (recall) | $\frac{VP}{VP+FN}$ | De los positivos reales, ¿cuántos detecté? | Cuando **no detectar** es lo caro |
+| **Especificidad** | $\frac{VN}{VN+FP}$ | De los negativos reales, ¿cuántos identifiqué? | Cuando la falsa alarma es costosa |
+| **Precisión** | $\frac{VP}{VP+FP}$ | De los que marqué positivos, ¿cuántos lo eran? | Cuando actuar sobre un positivo cuesta |
+| **F1** | $2\cdot\frac{P \cdot S}{P + S}$ | Equilibrio entre precisión y sensibilidad | Cuando ambos errores importan de forma parecida |
+
+: Las cinco métricas de la matriz de confusión {.striped tbl-colwidths="[16,16,38,30]"}
+
+### Barrer el umbral: todo cambia
+
+```{python}
+#| label: barrido-umbral
+#| code-summary: "El mismo modelo, siete decisiones distintas"
+filas = []
+for umbral in [0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.60]:
+    pred = (probabilidades >= umbral).astype(int)
+    tn, f_p, f_n, t_p = confusion_matrix(y_test, pred).ravel()
+    filas.append({
+        "Umbral": umbral,
+        "VP": t_p, "FN": f_n, "FP": f_p, "VN": tn,
+        "Sensibilidad": t_p / (t_p + f_n),
+        "Especificidad": tn / (tn + f_p),
+        "Precisión": t_p / (t_p + f_p) if (t_p + f_p) else 0.0,
+        "Exactitud": (t_p + tn) / len(y_test),
+    })
+
+tabla_umbral = pd.DataFrame(filas)
+tabla_umbral.style.format({
+    "Umbral": "{:.2f}", "Sensibilidad": "{:.1%}", "Especificidad": "{:.1%}",
+    "Precisión": "{:.1%}", "Exactitud": "{:.1%}"}).hide(axis="index") \
+    .background_gradient(cmap="Blues", subset=["Sensibilidad"]) \
+    .background_gradient(cmap="Oranges", subset=["Exactitud"])
+```
+
+::: {.callout-important}
+## Maximizar la exactitud es rendirse
+
+Lee las dos últimas columnas en sentido contrario:
+
+- La **exactitud** sube de forma monótona con el umbral. Su máximo se alcanza
+  cuando el modelo casi nunca dice «prolongada».
+- La **sensibilidad** se derrumba en la misma dirección.
+
+Es decir: **el umbral que maximiza la exactitud es el que más se acerca a no
+usar el modelo**. Optimizar la exactitud en un problema desbalanceado lleva
+directamente al modelo trivial.
+
+El umbral no se elige por estadística. Se elige por **el costo de cada tipo de
+error en el problema real**.
+:::
+
+### Elegir el umbral con la función de costo del negocio
+
+```{python}
+#| label: costos
+#| code-summary: "Traducir errores a pesos"
+COSTO_FP = 0.5   # reemplazo innecesario: medio día de salario
+COSTO_FN = 3.0   # turno sin cubrir: entregas incumplidas y penalidades
+
+tabla_costo = tabla_umbral.copy()
+tabla_costo["Costo total"] = tabla_costo.FP * COSTO_FP + tabla_costo.FN * COSTO_FN
+
+optimo = tabla_costo.loc[tabla_costo["Costo total"].idxmin()]
+
+tabla_costo[["Umbral", "VP", "FN", "FP", "Sensibilidad",
+             "Exactitud", "Costo total"]].style.format({
+    "Umbral": "{:.2f}", "Sensibilidad": "{:.1%}", "Exactitud": "{:.1%}",
+    "Costo total": "{:.1f}"}).hide(axis="index") \
+    .background_gradient(cmap="Reds", subset=["Costo total"])
+```
+
+```{python}
+#| label: optimo
+#| echo: false
+print(f"Umbral de mínimo costo: {optimo.Umbral:.2f}")
+print(f"  Sensibilidad: {optimo.Sensibilidad:.1%}  "
+      f"(detecta {int(optimo.VP)} de {int(optimo.VP + optimo.FN)} ausencias largas)")
+print(f"  Exactitud:    {optimo.Exactitud:.1%}  "
+      f"— MENOR que la del modelo trivial")
+print(f"  Costo total:  {optimo['Costo total']:.1f} jornadas equivalentes")
+```
+
+::: {.callout-note appearance="simple"}
+## El modelo «peor» según la exactitud es el mejor para la empresa
+
+El umbral óptimo produce una exactitud **inferior** a la del modelo que no hace
+nada. Y es, sin ambigüedad, la mejor decisión de negocio.
+
+Los costos 0,5 y 3,0 son supuestos. **Cámbialos y el umbral óptimo cambia.** Esa
+sensibilidad no es una debilidad del método: es el método funcionando. La
+decisión estadística depende de la estructura de costos, y explicitarla es parte
+del trabajo del analista.
+:::
+
+```{=html}
+<div class="micro decide"><div class="micro-cab"><span class="tipo">Decide</span><span class="titulo">Cambiar los costos, cambiar el umbral</span><span class="tiempo">15 min</span></div>
+<p>Modifica <code>COSTO_FP</code> y <code>COSTO_FN</code> y vuelve a ejecutar la tabla de costos para tres escenarios:</p>
+<ol>
+<li><b>Contrato con penalidad alta:</b> FP = 0,5 · FN = 10.</li>
+<li><b>Temporada baja, mucho personal disponible:</b> FP = 2 · FN = 2.</li>
+<li><b>Restricción presupuestal:</b> FP = 3 · FN = 1.</li>
+</ol>
+<p>Para cada escenario anota el umbral óptimo y la sensibilidad resultante. Después responde: ¿en cuál de los tres escenarios el modelo deja de aportar valor frente a no hacer nada? ¿Cómo lo sabes?</p></div>
+```
+
+## Parte 3 · ROC y AUC: evaluar el modelo sin fijar un umbral
+
+La curva ROC recorre **todos** los umbrales posibles y grafica la tasa de
+verdaderos positivos (sensibilidad) contra la tasa de falsos positivos
+(1 − especificidad). El AUC es el área bajo esa curva.
+
+```{python}
+#| label: fig-roc
+#| fig-cap: "Curva ROC de la regresión logística. Pasa el cursor sobre la curva para ver el umbral correspondiente a cada punto."
+from sklearn.metrics import roc_curve, precision_recall_curve, average_precision_score
+
+fpr, tpr, umbrales_roc = roc_curve(y_test, probabilidades)
+auc = roc_auc_score(y_test, probabilidades)
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(
+    x=fpr, y=tpr, mode="lines", name=f"Logística (AUC = {auc:.3f})",
+    line=dict(color="#17808C", width=2.5),
+    customdata=np.clip(umbrales_roc, 0, 1),
+    hovertemplate="Umbral: %{customdata:.3f}<br>"
+                  "Sensibilidad: %{y:.3f}<br>"
+                  "1 − especificidad: %{x:.3f}<extra></extra>"))
+fig.add_trace(go.Scatter(
+    x=[0, 1], y=[0, 1], mode="lines", name="Azar (AUC = 0,5)",
+    line=dict(color="#6B7A8C", width=1.2, dash="dash"), hoverinfo="skip"))
+fig.update_layout(
+    template="simple_white", height=430,
+    xaxis_title="Tasa de falsos positivos (1 − especificidad)",
+    yaxis_title="Sensibilidad (tasa de verdaderos positivos)",
+    legend=dict(x=0.45, y=0.08), margin=dict(t=30, b=40))
+fig
+```
+
+::: {.callout-tip appearance="simple"}
+## Qué significa exactamente el AUC
+
+El AUC es la probabilidad de que, tomando al azar **una ausencia prolongada** y
+**una ausencia corta**, el modelo asigne mayor probabilidad a la prolongada.
+
+Con AUC = `{python} f"{auc:.3f}".replace(".", ",")`, el modelo ordena
+correctamente ese par en cerca del `{python} f"{auc:.0%}"` de los casos. Es una
+medida de **capacidad de ordenamiento**, independiente del umbral.
+
+Referencias habituales: 0,5 es azar; 0,7–0,8 aceptable; 0,8–0,9 bueno;
+por encima de 0,9, conviene sospechar fuga de información antes que celebrar.
+:::
+
+### La curva que el AUC oculta
+
+```{python}
+#| label: fig-pr
+#| fig-cap: "Curva precisión-sensibilidad. Con clases desbalanceadas, esta curva es más informativa que la ROC."
+precision, sensibilidad, _ = precision_recall_curve(y_test, probabilidades)
+ap = average_precision_score(y_test, probabilidades)
+tasa_base = y_test.mean()
+
+fig, ax = plt.subplots(figsize=(7.5, 4.2))
+ax.plot(sensibilidad, precision, color="#B4543A", linewidth=2.2,
+        label=f"Logística (AP = {ap:.3f})")
+ax.axhline(tasa_base, color="#6B7A8C", linestyle="--", linewidth=1.2,
+           label=f"Modelo sin información ({tasa_base:.1%})")
+ax.set_xlabel("Sensibilidad (recall)")
+ax.set_ylabel("Precisión")
+ax.set_ylim(0, 1)
+ax.legend(loc="upper right", frameon=False)
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-important}
+## Por qué la ROC puede ser demasiado optimista
+
+La tasa de falsos positivos usa como denominador el número de negativos, que
+aquí son `{python} int((y_test == 0).sum())`. Añadir 26 falsos positivos mueve
+poco esa tasa, porque el denominador es grande. La curva ROC se ve bien.
+
+La **precisión** usa como denominador los casos que marcamos como positivos. Con
+solo `{python} int(y_test.sum())` positivos reales, esos mismos 26 falsos
+positivos hunden la precisión.
+
+La línea base de la curva PR es la prevalencia
+(`{python} f"{tasa_base:.1%}".replace(".", ",")`), no 0,5. Con clases muy
+desbalanceadas, **la curva PR describe mejor lo que el usuario del modelo va a
+experimentar** [@saito2015]: de cada diez alertas, ¿cuántas serán ciertas?
+:::
+
+## Parte 4 · Comparar clasificadores
+
+Ahora los cuatro modelos del programa, sobre el mismo conjunto de prueba.
+
+```{python}
+#| label: modelos
+#| code-summary: "Cinco clasificadores, mismas condiciones"
+from sklearn.dummy import DummyClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+
+def evaluar(nombre, estimador):
+    flujo = estimador if isinstance(estimador, (Pipeline, DummyClassifier)) \
+            else Pipeline([("prep", preprocesador), ("modelo", estimador)])
+    flujo.fit(X_train, y_train)
+    pred = flujo.predict(X_test)
+    proba = flujo.predict_proba(X_test)[:, 1]
+    return {
+        "Modelo": nombre,
+        "Exactitud": accuracy_score(y_test, pred),
+        "Sensibilidad": recall_score(y_test, pred),
+        "Especificidad": recall_score(y_test, pred, pos_label=0),
+        "Precisión": precision_score(y_test, pred, zero_division=0),
+        "F1": f1_score(y_test, pred),
+        "AUC": roc_auc_score(y_test, proba),
+    }, proba
+
+configuraciones = [
+    ("Trivial (clase mayoritaria)", DummyClassifier(strategy="most_frequent")),
+    ("Logística", LogisticRegression(max_iter=2000, random_state=SEMILLA)),
+    ("Logística balanceada",
+     LogisticRegression(max_iter=2000, class_weight="balanced", random_state=SEMILLA)),
+    ("Árbol de decisión (prof. 4)",
+     DecisionTreeClassifier(max_depth=4, class_weight="balanced", random_state=SEMILLA)),
+    ("Random Forest",
+     RandomForestClassifier(n_estimators=500, min_samples_leaf=2,
+                            class_weight="balanced_subsample",
+                            random_state=SEMILLA, n_jobs=-1)),
+    ("k-NN (k = 15)", KNeighborsClassifier(n_neighbors=15)),
+]
+
+resultados, probas = [], {}
+for nombre, estimador in configuraciones:
+    fila, proba = evaluar(nombre, estimador)
+    resultados.append(fila)
+    probas[nombre] = proba
+
+comparacion = pd.DataFrame(resultados)
+comparacion.style.format({
+    "Exactitud": "{:.1%}", "Sensibilidad": "{:.1%}", "Especificidad": "{:.1%}",
+    "Precisión": "{:.1%}", "F1": "{:.3f}", "AUC": "{:.3f}"}).hide(axis="index") \
+    .background_gradient(cmap="Oranges", subset=["Exactitud"]) \
+    .background_gradient(cmap="Blues", subset=["Sensibilidad", "AUC"])
+```
+
+```{=html}
+<div class="micro compara"><div class="micro-cab"><span class="tipo">Compara</span><span class="titulo">Tres lecturas de la misma tabla</span><span class="tiempo">15 min</span></div>
+<p>Responde con números de la tabla, no con intuiciones:</p>
+<ol>
+<li>Ordena los modelos por <b>exactitud</b>. Ordénalos por <b>sensibilidad</b>. Ordénalos por <b>AUC</b>. ¿Coinciden los tres rankings?</li>
+<li>k-NN y el modelo trivial tienen exactitud idéntica. ¿Significa que son igual de buenos? Mira el AUC antes de responder.</li>
+<li>La logística y la logística balanceada tienen el <b>mismo AUC</b> pero sensibilidades muy distintas. Explica por qué eso no es una contradicción.</li>
+<li>Si tuvieras que presentar <b>un solo número</b> al gerente, ¿cuál elegirías y qué advertencia lo acompañaría?</li>
+</ol></div>
+```
+
+::: {.callout-important}
+## El hallazgo central de este cuadernillo
+
+La **logística** y la **logística balanceada** son el mismo modelo, con las
+mismas probabilidades y el mismo AUC. Lo único que cambia es cuánto pesa la
+clase minoritaria durante el ajuste, lo que desplaza de hecho el punto de corte.
+
+Resultado: la exactitud cae de forma notable y la sensibilidad se multiplica
+por ocho.
+
+**Ningún modelo es mejor en abstracto.** `class_weight="balanced"` no mejora el
+modelo: cambia el compromiso entre los dos errores. Cuál de los dos compromisos
+sirve lo decide el problema, no la tabla.
+:::
+
+### Curvas ROC comparadas
+
+```{python}
+#| label: fig-roc-comparada
+#| fig-cap: "Curvas ROC de los modelos con capacidad de ordenamiento. El modelo trivial coincide con la diagonal."
+colores = {"Logística": "#17808C", "Logística balanceada": "#0F5E68",
+           "Árbol de decisión (prof. 4)": "#B07D12",
+           "Random Forest": "#B4543A", "k-NN (k = 15)": "#6A4C93"}
+
+fig = go.Figure()
+for nombre, color in colores.items():
+    f, t, u = roc_curve(y_test, probas[nombre])
+    fig.add_trace(go.Scatter(
+        x=f, y=t, mode="lines", name=f"{nombre} ({roc_auc_score(y_test, probas[nombre]):.3f})",
+        line=dict(color=color, width=2),
+        customdata=np.clip(u, 0, 1),
+        hovertemplate="Umbral: %{customdata:.3f}<br>Sens: %{y:.3f}"
+                      "<br>1−Esp: %{x:.3f}<extra></extra>"))
+fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", name="Azar",
+                         line=dict(color="#9AA7B5", dash="dash", width=1.2),
+                         hoverinfo="skip"))
+fig.update_layout(template="simple_white", height=470,
+                  xaxis_title="Tasa de falsos positivos",
+                  yaxis_title="Sensibilidad",
+                  legend=dict(x=0.38, y=0.05, font=dict(size=11)),
+                  margin=dict(t=30, b=40))
+fig
+```
+
+### Cada modelo, en una frase
+
+::: {.panel-tabset}
+
+### Logística
+
+Modela la probabilidad como función lineal del logit. **Ventaja:** coeficientes
+interpretables como razones de momios, probabilidades bien calibradas, robusta
+con pocos datos. **Límite:** solo captura relaciones lineales en el logit; las
+interacciones hay que declararlas a mano.
+
+Necesita estandarización si se regulariza (y `scikit-learn` regulariza por
+defecto: el parámetro `C` controla la penalización L2).
+
+### Árbol de decisión
+
+Particiona el espacio con cortes sucesivos. **Ventaja:** captura interacciones y
+no linealidades sin declararlas, se puede dibujar y explicar a cualquiera, no
+necesita escalamiento. **Límite:** muy inestable —cambiar unas pocas
+observaciones produce un árbol distinto— y propenso al sobreajuste sin poda.
+
+```{python}
+#| label: fig-arbol
+#| fig-cap: "Árbol de profundidad 3 sobre las variables originales. Los cortes son legibles."
+#| code-fold: true
+from sklearn.tree import plot_tree
+
+arbol_simple = DecisionTreeClassifier(max_depth=3, class_weight="balanced",
+                                      random_state=SEMILLA)
+arbol_simple.fit(preprocesador.fit_transform(X_train, y_train), y_train)
+
+fig, ax = plt.subplots(figsize=(13, 5))
+plot_tree(arbol_simple, ax=ax, filled=True, fontsize=7, impurity=False,
+          feature_names=[n.split("__")[-1] for n in
+                         preprocesador.get_feature_names_out()],
+          class_names=["Corta", "Prolongada"], proportion=True)
+plt.tight_layout()
+plt.show()
+```
+
+### Random Forest
+
+Promedia cientos de árboles, cada uno entrenado sobre una muestra bootstrap y
+con un subconjunto aleatorio de variables en cada corte [@breiman2001rf].
+**Ventaja:** reduce drásticamente la varianza del árbol individual, suele ser el
+mejor desempeño «sin afinar», entrega importancia de variables. **Límite:** deja
+de ser directamente interpretable y es costoso de entrenar.
+
+Sus dos hiperparámetros más influyentes son `min_samples_leaf` (controla la
+profundidad efectiva) y `max_features` (controla la decorrelación entre árboles).
+
+### k-NN
+
+Clasifica según la clase mayoritaria entre los $k$ vecinos más cercanos.
+**Ventaja:** sin supuestos sobre la forma de la frontera, conceptualmente
+transparente. **Límite:** **exige** estandarización, sufre con muchas
+dimensiones, y con clases desbalanceadas tiende a predecir siempre la
+mayoritaria —que es justo lo que se observa en la tabla.
+
+```{python}
+#| label: knn-escala
+#| code-summary: "k-NN con y sin estandarización"
+sin_escalar = Pipeline([
+    ("prep", ColumnTransformer([
+        ("num", SimpleImputer(strategy="median"), cols_num),
+        ("cat", OneHotEncoder(handle_unknown="ignore", drop="first",
+                              sparse_output=False), cols_cat)])),
+    ("modelo", KNeighborsClassifier(n_neighbors=15)),
+]).fit(X_train, y_train)
+
+con_escala = Pipeline([("prep", preprocesador),
+                       ("modelo", KNeighborsClassifier(n_neighbors=15))
+                       ]).fit(X_train, y_train)
+
+pd.DataFrame({
+    "Versión": ["Sin estandarizar", "Con StandardScaler"],
+    "AUC": [roc_auc_score(y_test, sin_escalar.predict_proba(X_test)[:, 1]),
+            roc_auc_score(y_test, con_escala.predict_proba(X_test)[:, 1])],
+}).style.format({"AUC": "{:.3f}"}).hide(axis="index")
+```
+
+`carga_trabajo_dia` toma valores del orden de 270 000 mientras que `n_hijos` va
+de 0 a 4. Sin estandarizar, la distancia euclídea es prácticamente la
+diferencia de carga de trabajo, y las demás variables no participan.
+
+:::
+
+### Importancia de variables
+
+```{python}
+#| label: fig-importancia
+#| fig-cap: "Importancia por permutación en el Random Forest: cuánto empeora el AUC al desordenar cada variable."
+from sklearn.inspection import permutation_importance
+
+bosque = Pipeline([("prep", preprocesador),
+                   ("modelo", RandomForestClassifier(
+                       n_estimators=500, min_samples_leaf=2,
+                       class_weight="balanced_subsample",
+                       random_state=SEMILLA, n_jobs=-1))]).fit(X_train, y_train)
+
+importancia = permutation_importance(bosque, X_test, y_test, scoring="roc_auc",
+                                     n_repeats=30, random_state=SEMILLA, n_jobs=-1)
+
+imp = (pd.DataFrame({"variable": X_test.columns,
+                     "caida_auc": importancia.importances_mean,
+                     "sd": importancia.importances_std})
+       .sort_values("caida_auc"))
+
+fig, ax = plt.subplots(figsize=(7.5, 4.4))
+ax.barh(imp.variable, imp.caida_auc, xerr=imp.sd, color="#17808C",
+        edgecolor="white", error_kw=dict(ecolor="#6B7A8C", lw=0.8))
+ax.axvline(0, color="#3C4A5A", linewidth=0.9)
+ax.set_xlabel("Caída del AUC al permutar la variable")
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-warning appearance="simple"}
+## Importancia no es causalidad, ni siquiera es «efecto»
+
+La importancia por permutación mide **cuánto usa el modelo** una variable, no
+cuánto influye esa variable en la realidad. Una variable importante puede serlo
+por ser proxy de otra que no está en los datos.
+
+Además, con predictoras correlacionadas la importancia se reparte de forma
+arbitraria entre ellas: permutar una sola no destruye la información, porque su
+compañera sigue ahí. Las barras con error que cruzan el cero no son
+distinguibles de cero.
+
+Se prefiere la importancia por permutación sobre la `feature_importances_` de
+los árboles, porque esta última está sesgada hacia las variables con muchas
+categorías o muchos valores distintos.
+:::
+
+```{=html}
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta el problema</span><span class="titulo">Un reporte con cuatro afirmaciones</span><span class="tiempo">15 min</span></div>
+<p>Un consultor entrega este resumen. Señala qué está mal en cada afirmación:</p>
+<blockquote>
+<p>«(1) El modelo logra 91 % de exactitud, superior al de la competencia. (2) El AUC de 0,80 confirma que es un modelo excelente. (3) La variable más importante es el motivo reportado, lo que demuestra que el tipo de dolencia causa las ausencias largas. (4) Recomendamos implementarlo con el umbral estándar de 0,5.»</p>
+</blockquote>
+<p>Para cada punto: ¿qué está mal, qué evidencia de este cuadernillo lo contradice y cómo lo reescribirías?</p>
+<p>La afirmación (1) es la más peligrosa, porque es literalmente cierta.</p></div>
+```
+
+```{=html}
+<div class="micro reto"><div class="micro-cab"><span class="tipo">Reto</span><span class="titulo">Umbral por validación cruzada, sin tocar el test</span><span class="tiempo">15 min</span></div>
+<p>En este cuadernillo elegimos el umbral óptimo usando el conjunto de <b>prueba</b>. Eso es metodológicamente incorrecto: el umbral es un hiperparámetro y elegirlo mirando el test contamina la estimación final.</p>
+<p>Escribe el código que lo haga bien:</p>
+<ol>
+<li>Con <code>cross_val_predict(..., method="predict_proba")</code>, obtén probabilidades fuera de muestra sobre el conjunto de <b>entrenamiento</b>.</li>
+<li>Barre el umbral sobre esas probabilidades y elige el de mínimo costo.</li>
+<li>Aplica <b>ese</b> umbral al conjunto de prueba y reporta el costo resultante.</li>
+</ol>
+<p>Compara tu resultado con el de la tabla. ¿El umbral elegido es el mismo? ¿El costo estimado era optimista? Esta es exactamente la corrección que se espera en la Actividad 3.</p></div>
+```
+
+## El mismo flujo, en R
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, recall_score
+
+flujo = Pipeline([("prep", preprocesador),
+                  ("modelo", LogisticRegression(max_iter=2000,
+                                                class_weight="balanced",
+                                                random_state=42))])
+flujo.fit(X_train, y_train)
+
+proba = flujo.predict_proba(X_test)[:, 1]
+pred  = (proba >= 0.15).astype(int)     # umbral elegido por costo
+```
+
+### R (tidymodels)
+
+```{.r}
+library(tidymodels)
+set.seed(42)
+
+receta <- recipe(ausencia_prolongada ~ ., data = entrenamiento) |>
+  step_impute_median(all_numeric_predictors()) |>
+  step_other(motivo, threshold = 0.03) |>       # agrupa categorías raras
+  step_dummy(all_nominal_predictors()) |>
+  step_normalize(all_numeric_predictors())
+
+modelo <- logistic_reg() |> set_engine("glm")
+
+flujo <- workflow() |> add_recipe(receta) |> add_model(modelo) |>
+  fit(data = entrenamiento)
+
+predicciones <- augment(flujo, prueba)
+
+roc_auc(predicciones, truth = ausencia_prolongada, .pred_1, event_level = "second")
+conf_mat(predicciones, truth = ausencia_prolongada, estimate = .pred_class)
+
+# Umbral distinto de 0,5
+library(probably)
+predicciones |>
+  mutate(.pred_umbral = make_two_class_pred(.pred_1, levels(ausencia_prolongada),
+                                            threshold = 0.15))
+```
+
+:::
+
+```{=html}
+<div class="micro discute"><div class="micro-cab"><span class="tipo">Discute</span><span class="titulo">Para el encuentro virtual</span><span class="tiempo">15 min</span></div>
+<p>El Random Forest obtiene el mejor AUC; la logística balanceada, la mejor sensibilidad con el umbral por defecto; el árbol de profundidad 4 se puede dibujar en una diapositiva.</p>
+<p>La empresa debe elegir uno. Prepara una recomendación que responda:</p>
+<ol>
+<li>¿Qué modelo propones y con qué umbral? Justifica con métricas concretas.</li>
+<li>¿Cómo le explicarías a un supervisor de turno —sin formación estadística— por qué el sistema dio una alerta?</li>
+<li>El gerente pregunta: «¿por qué su modelo acierta menos que el que teníamos?». Redacta tu respuesta en tres frases.</li>
+<li>¿Qué tendría que ocurrir en la operación para que recomendaras retirar el modelo?</li>
+</ol></div>
+```
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>La regresión logística predice <b>probabilidades</b>. La clase aparece solo al aplicar un umbral.</li>
+<li>El umbral 0,5 es un valor por defecto, no una decisión estadística. En problemas desbalanceados es casi siempre el peor.</li>
+<li>Un coeficiente logístico se interpreta como razón de momios: las odds se multiplican por e^β.</li>
+<li>La exactitud crece al subir el umbral hasta converger con el modelo trivial. Maximizarla es rendirse.</li>
+<li>Sensibilidad y especificidad se mueven en direcciones opuestas: el punto de equilibrio lo fija el <b>costo</b> de cada error.</li>
+<li>El AUC mide capacidad de ordenamiento, sin umbral. Dos modelos con el mismo AUC pueden tomar decisiones opuestas.</li>
+<li>Con clases desbalanceadas, la curva precisión-sensibilidad es más informativa que la ROC.</li>
+<li><code>class_weight="balanced"</code> no mejora el modelo: cambia el compromiso entre los dos errores.</li>
+<li>k-NN y los modelos de distancia <b>exigen</b> estandarización; los de árboles, no.</li>
+<li>La importancia de variables mide uso por el modelo, no causalidad ni efecto real.</li>
+</ul>
+</div>
+```
+
+## Errores frecuentes en este tema
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Reportar solo la exactitud con clases desbalanceadas | Un modelo inútil parece excelente | Reportar siempre la matriz de confusión completa y la sensibilidad |
+| Usar el umbral 0,5 sin justificarlo | Se pierde la clase minoritaria | Elegir el umbral con una función de costo explícita |
+| Elegir el umbral mirando el conjunto de prueba | El desempeño reportado es optimista | Elegirlo por validación cruzada sobre entrenamiento |
+| Interpretar el coeficiente logístico como probabilidad | Interpretación errónea de la magnitud | Convertir a razón de momios con $e^{\beta}$ |
+| Olvidar que las numéricas están estandarizadas | «Un año más de antigüedad» cuando en realidad es una desviación estándar | Declarar la escala al interpretar |
+| Usar solo la ROC con clases muy desbalanceadas | El modelo parece mejor de lo que el usuario experimentará | Añadir la curva PR y la precisión en el umbral operativo |
+| Aplicar k-NN sin estandarizar | La variable de mayor escala domina la distancia | `StandardScaler` dentro del `Pipeline` |
+| Interpretar la importancia como efecto causal | Recomendaciones de política equivocadas | Hablar de «uso por el modelo»; revisar correlaciones |
+| Comparar modelos con distinto preprocesamiento | La comparación no es válida | Mismo `preprocesador`, misma partición, misma semilla |
+| Declarar ganador con diferencias de 1 o 2 casos | Se confunde ruido con mejora | Validación cruzada con dispersión entre pliegues |
+
+: Errores frecuentes del Cuadernillo 4 {.striped tbl-colwidths="[32,34,34]"}
+
+## Conexión con la Actividad 3
+
+::: {.callout-note}
+## Actividad institucional 3 · Clasificación supervisada y comparación de desempeño (20 %, semana 6)
+
+El producto es un **informe de evaluación de métricas y desempeño**. Lo que se
+espera, y que este cuadernillo te deja practicado:
+
+- Al menos dos clasificadores comparados bajo condiciones idénticas.
+- Matriz de confusión completa, no solo la exactitud.
+- Justificación explícita de **por qué** esa es la métrica principal, en función
+  del problema.
+- Umbral elegido con criterio, no por defecto —y elegido sin mirar el conjunto
+  de prueba (ver el **Reto** de más arriba).
+- Curva ROC con su AUC y, si hay desbalance, la curva PR.
+- Una conclusión que responda a una decisión de negocio, no solo a una tabla.
+
+Lo que no basta: ejecutar seis modelos y reportar el de mayor exactitud. Eso, en
+este problema, equivale a recomendar el modelo trivial.
+:::
+
+El siguiente paso es el [Cuadernillo 5](../05-validacion/cuadernillo-05.qmd),
+donde se pregunta si todos estos números son confiables —y se descubre que la
+partición que usamos aquí tiene un problema.
+
+## Recursos adicionales
+
+- @james2023, capítulos 4 (clasificación y regresión logística) y 8 (árboles y
+  Random Forest).
+- @saito2015 — por qué la curva PR es preferible a la ROC con clases
+  desbalanceadas. Artículo abierto y directo.
+- @breiman2001rf — el artículo original de Random Forests.
+- [scikit-learn · Metrics and scoring](https://scikit-learn.org/stable/modules/model_evaluation.html) —
+  catálogo completo de métricas de clasificación y su cálculo.
+- [scikit-learn · Tuning the decision threshold](https://scikit-learn.org/stable/modules/classification_threshold.html) —
+  cómo ajustar el umbral correctamente, con `TunedThresholdClassifierCV`.
+- [Google · Classification: ROC and AUC](https://developers.google.com/machine-learning/crash-course/classification/roc-and-auc) —
+  explicación visual e interactiva, en español.

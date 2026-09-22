@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="30" height="30" role="img" aria-label="Modelos supervisados">
+  <rect x="1" y="1" width="34" height="34" rx="8" fill="none" stroke="#9FD4DB" stroke-width="2"/>
+  <line x1="7" y1="27" x2="29" y2="11" stroke="#9FD4DB" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="11" cy="22" r="2.4" fill="#FFFFFF"/>
+  <circle cx="18" cy="21" r="2.4" fill="#FFFFFF"/>
+  <circle cx="24" cy="13" r="2.4" fill="#FFFFFF"/>
+  <circle cx="14" cy="13" r="2.4" fill="#FFFFFF" opacity="0.55"/>
+  <circle cx="26" cy="24" r="2.4" fill="#FFFFFF" opacity="0.55"/>
+</svg>

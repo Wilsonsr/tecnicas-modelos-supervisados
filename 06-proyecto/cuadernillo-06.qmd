@@ -1,0 +1,398 @@
+---
+title: "Cuadernillo 6 · Proyecto integrador"
+subtitle: "Mapa metodológico: del problema a la decisión comunicada"
+description: "Guía metodológica del proyecto del curso, con las decisiones que hay que tomar en cada etapa, los criterios de autoevaluación y los errores que cuestan puntos."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Alcance</span><span class="vl">Semanas 1 a 9</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">Transversal a las tres</span></div>
+<div class="ficha-item"><span class="et">Uso</span><span class="vl">Consulta continua</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span><span class="ra ra-15">RA15</span></span></div>
+<div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividades 1 a 5</span></div>
+</div>
+<hr>
+<div class="previos"><strong>Advertencia:</strong> esta guía es un <b>mapa metodológico</b>. No reemplaza la guía institucional del proyecto publicada en el aula virtual: si hay discrepancia en requisitos, plazos o criterios de calificación, prevalece la del aula.</div>
+</div>
+```
+
+## La pregunta que ordena todo el proyecto
+
+> **¿Qué decisión va a tomar alguien de forma distinta gracias a tu modelo?**
+
+Si no puedes responderla en una frase, todavía no tienes un proyecto: tienes un
+conjunto de datos. Todo lo demás —la elección del modelo, la métrica, el
+umbral, el formato del informe— se deriva de esa respuesta.
+
+Un proyecto que responde «queremos predecir X porque teníamos los datos» está
+condenado a un informe sin conclusiones.
+
+## El recorrido completo
+
+::: {.ruta}
+::: {.paso}
+**Problema**
+<span>Qué decisión, de quién, con qué costos.</span>
+:::
+::: {.paso}
+**Datos**
+<span>Unidad de análisis, objetivo, procedencia.</span>
+:::
+::: {.paso}
+**Exploración**
+<span>Calidad, distribuciones, relaciones, riesgos.</span>
+:::
+::: {.paso}
+**Preparación**
+<span>Limpieza justificada y pipeline.</span>
+:::
+::: {.paso}
+**Modelo base**
+<span>El punto de comparación obligatorio.</span>
+:::
+::: {.paso}
+**Candidatos**
+<span>Dos o tres, mismas condiciones.</span>
+:::
+::: {.paso}
+**Validación**
+<span>Esquema acorde a la estructura de los datos.</span>
+:::
+::: {.paso}
+**Comparación**
+<span>Con dispersión, no solo con medias.</span>
+:::
+::: {.paso}
+**Interpretación**
+<span>Qué aprendimos del fenómeno.</span>
+:::
+::: {.paso}
+**Conclusiones**
+<span>Con límites explícitos.</span>
+:::
+::: {.paso}
+**Comunicación**
+<span>En las unidades de quien decide.</span>
+:::
+:::
+
+## Etapa 1 · Definir el problema
+
+**Qué se entrega:** un párrafo. Uno solo. Pero es el párrafo que sostiene todo
+el proyecto.
+
+| Pregunta | Por qué importa |
+|---|---|
+| ¿Qué decisión concreta se quiere apoyar? | Define la métrica y el umbral |
+| ¿Quién la toma y con qué información cuenta hoy? | Define la línea base contra la cual compararse |
+| ¿Cuándo se toma? | Define qué variables están disponibles (y cuáles serían fuga) |
+| ¿Cuánto cuesta cada tipo de error? | Define el punto de operación del modelo |
+| ¿Es un problema de regresión o de clasificación? | Se deriva de la respuesta, no se elige por gusto |
+
+: Las cinco preguntas de la etapa 1 {.striped tbl-colwidths="[46,54]"}
+
+::: {.callout-tip appearance="simple"}
+## Plantilla del párrafo inicial
+
+> «**\[Quién\]** debe decidir **\[qué\]** en el momento en que **\[cuándo\]**.
+> Hoy lo hace con **\[cómo\]**. Un error del tipo **\[FP o sobrestimación\]**
+> cuesta **\[cuánto\]**, y un error del tipo **\[FN o subestimación\]** cuesta
+> **\[cuánto\]**. Proponemos estimar **\[variable objetivo\]** a partir de
+> **\[qué información, disponible en ese momento\]**.»
+
+Si alguna casilla queda vacía, ahí está el trabajo pendiente.
+:::
+
+```{=html}
+<div class="micro decide"><div class="micro-cab"><span class="tipo">Decide</span><span class="titulo">El párrafo de tu proyecto</span><span class="tiempo">15 min</span></div>
+<p>Escribe el párrafo de tu proyecto con la plantilla anterior. Después, dáselo a otro grupo sin más contexto y pídeles que respondan:</p>
+<ol>
+<li>¿Es un problema de regresión o de clasificación?</li>
+<li>¿Qué error les parece más costoso?</li>
+<li>¿Qué decidiría alguien distinto gracias a este modelo?</li>
+</ol>
+<p>Si no pueden responder las tres, el párrafo necesita otra vuelta. Esta microactividad se hace en el Encuentro 1.</p></div>
+```
+
+## Etapa 2 · Conocer los datos
+
+**Qué se entrega:** la sección de datos del informe exploratorio (Actividad 1).
+
+Debe responder, explícitamente:
+
+- **Procedencia.** Quién produjo estos datos, cuándo, con qué propósito. Un dato
+  recogido para facturar no sirve igual que uno recogido para investigar.
+- **Unidad de análisis.** ¿Qué es una fila? Si no puedes decirlo en cinco
+  palabras, hay un problema de estructura.
+- **Población representada.** ¿A quién describe esta muestra y a quién no?
+- **Variable objetivo.** Si la construyes (como `ausencia_prolongada` en este
+  curso), justifica el umbral con el problema, no con la distribución.
+- **Predictoras candidatas**, y para cada una: ¿está disponible en el momento de
+  predecir?
+- **Tamaño efectivo.** No el número de filas: el número de casos de la clase
+  minoritaria, o de grupos independientes. Ese es el que limita lo que puedes
+  concluir.
+- **Problemas de calidad conocidos.**
+
+::: {.callout-warning appearance="simple"}
+## El tamaño que importa no es el número de filas
+
+En el conjunto de ausentismo de este curso hay 696 filas. Pero hay 63 casos
+positivos y 36 empleados. Con 63 positivos, un conjunto de prueba del 30 %
+contiene 19 casos: cada acierto vale cinco puntos de sensibilidad.
+
+Declarar el tamaño efectivo desde el principio evita conclusiones que los datos
+no soportan.
+:::
+
+## Etapa 3 · Explorar
+
+**Qué se entrega:** el cuerpo del informe exploratorio (Actividad 1).
+
+La regla es una sola: **cada gráfico responde a una pregunta escrita**. Un
+informe con cinco gráficos comentados vale más que uno con veinte sin comentar.
+
+| Nivel | Qué buscas | Herramientas |
+|---|---|---|
+| Univariado | Forma, escala, asimetría, valores imposibles | Histogramas, resúmenes, conteos |
+| Bivariado con y | Qué predictoras se relacionan con el objetivo | Dispersión, cajas por categoría, correlaciones |
+| Entre predictoras | Redundancias y colinealidad | Matriz de correlación, VIF |
+| Calidad | Faltantes, errores, inconsistencias | Tablas de faltantes, reglas de plausibilidad |
+| Riesgos | Fuga de información, estructura de grupos | Revisión variable por variable |
+
+: Los cinco niveles de la exploración {.striped tbl-colwidths="[18,44,38]"}
+
+Ver el [Cuadernillo 2](../02-preprocesamiento/cuadernillo-02.qmd) para el
+desarrollo completo.
+
+## Etapa 4 · Preparar
+
+**Qué se entrega:** el `Pipeline` (o la `recipe`) y la bitácora de decisiones.
+
+::: {.callout-important appearance="simple"}
+## La regla que no tiene excepciones
+
+Toda transformación que **estime algo a partir de los datos** —una mediana para
+imputar, una media y desviación para estandarizar, las categorías presentes para
+codificar, un conjunto de variables seleccionadas— va **dentro** del `Pipeline`.
+
+Solo pueden hacerse antes de partir las correcciones que no dependen de la
+distribución: conversiones de tipo, normalización de texto y eliminación de
+registros imposibles según una regla externa.
+:::
+
+**La bitácora de decisiones** es una tabla con tres columnas: qué se hizo, por
+qué, cuántos registros o variables afectó. Es lo que hace auditable tu trabajo,
+y es lo primero que un evaluador busca.
+
+## Etapa 5 · El modelo base
+
+**Qué se entrega:** una línea en la tabla de resultados. Obligatoria.
+
+| Tipo de problema | Modelo base |
+|---|---|
+| Regresión | `DummyRegressor(strategy="mean")` |
+| Clasificación | `DummyClassifier(strategy="most_frequent")` |
+| Cualquiera, si existe | La regla que el negocio ya aplica hoy |
+
+: Modelos base según el problema {.striped tbl-colwidths="[36,64]"}
+
+::: {.callout-note appearance="simple"}
+## La línea base del negocio vale más que la estadística
+
+Si el jefe de operaciones ya sabe que las ausencias por lesión suelen ser largas,
+esa es la regla que tu modelo debe superar. Superar al `DummyClassifier` es fácil
+y no impresiona a nadie que conozca la operación.
+:::
+
+## Etapa 6 · Modelos candidatos
+
+**Qué se entrega:** dos o tres modelos, entrenados en condiciones idénticas.
+
+- **Mismo** preprocesamiento, **misma** partición, **misma** semilla.
+- Hiperparámetros elegidos por validación cruzada **sobre entrenamiento**.
+- Al menos un modelo interpretable (lineal o logística) como referencia.
+- Justificación de por qué esos modelos y no otros.
+
+Más modelos no es mejor. Tres modelos bien comparados valen más que ocho
+ejecutados.
+
+## Etapa 7 · Validar
+
+**Qué se entrega:** el esquema de validación, justificado por la estructura de
+los datos.
+
+| Si tus datos… | Usa | Porque |
+|---|---|---|
+| Son independientes | `KFold` / `StratifiedKFold` | Es el caso estándar |
+| Tienen varias filas por individuo o entidad | `GroupKFold` / `StratifiedGroupKFold` | El mismo individuo no puede estar en ambos lados |
+| Tienen orden temporal | `TimeSeriesSplit` | No se puede entrenar con el futuro |
+| Son pocos | `RepeatedStratifiedKFold` | Reduce la dependencia de una partición afortunada |
+
+: Elección del esquema de validación {.striped tbl-colwidths="[30,30,40]"}
+
+Ver el [Cuadernillo 5](../05-validacion/cuadernillo-05.qmd), donde se muestra
+con números lo que cuesta equivocarse aquí.
+
+## Etapa 8 · Comparar
+
+**Qué se entrega:** una tabla con media **y** dispersión.
+
+::: {.callout-important appearance="simple"}
+## Cuándo puedes declarar un ganador
+
+Solo cuando la diferencia entre modelos es mayor que la variabilidad del propio
+procedimiento de estimación. Si no lo es, la conclusión correcta es:
+
+> «Los modelos son equivalentes en desempeño dentro del margen de variación
+> observado. Se elige \[X\] por \[interpretabilidad / costo / mantenibilidad\].»
+
+Esa es una conclusión fuerte, no una evasiva.
+:::
+
+## Etapa 9 · Interpretar
+
+**Qué se entrega:** qué aprendiste del fenómeno, no solo del modelo.
+
+- **Regresión:** coeficientes con su significado *ceteris paribus*, signos
+  discutidos, VIF revisado, supuestos evaluados y sus consecuencias.
+- **Clasificación:** razones de momios o importancia de variables, con la
+  advertencia de que importancia no es efecto ni causa.
+- **Ambos:** dónde falla el modelo, y en qué segmentos.
+
+Un hallazgo del tipo «el coeficiente de X es negativo, lo que sugiere que…» vale
+más que cualquier décima de R².
+
+## Etapa 10 · Concluir
+
+**Qué se entrega:** conclusiones con límites.
+
+| Debe estar | No debe estar |
+|---|---|
+| Respuesta a la pregunta de la Etapa 1 | Un listado de lo que se hizo |
+| El desempeño en las unidades del problema | Solo la métrica técnica |
+| Dominio de validez del modelo | Promesas de generalización |
+| Usos desaconsejados | Silencio sobre el mal uso |
+| Limitaciones de los datos | Limitaciones escondidas al final |
+| Qué haría falta para mejorar | «Se recomienda usar deep learning» |
+
+: Qué contiene una buena conclusión {.striped tbl-colwidths="[50,50]"}
+
+## Etapa 11 · Comunicar
+
+**Qué se entrega:** el video de socialización (Actividad 4).
+
+::: {.callout-tip}
+## Estructura sugerida para el video
+
+1.  **El problema y la decisión** (≈ 1 min). Quién decide qué, y qué le cuesta
+    equivocarse.
+2.  **Los datos en tres frases** (≈ 1 min). Qué son, cuántos, qué limitación
+    tienen.
+3.  **Lo que encontramos al explorarlos** (≈ 1–2 min). Uno o dos hallazgos, no
+    diez gráficos.
+4.  **El modelo y por qué ese** (≈ 2 min). Incluida la comparación con la línea
+    base.
+5.  **Qué tan bien funciona, en las unidades del problema** (≈ 2 min). Un número
+    protagonista.
+6.  **Qué no hace y qué haría falta** (≈ 1 min). Esto es lo que da credibilidad.
+
+Un error frecuente: dedicar la mitad del video al preprocesamiento. Es el trabajo
+más largo y el menos interesante para la audiencia. Resúmelo y pasa a las
+decisiones.
+:::
+
+## Autoevaluación antes de entregar
+
+::: {.callout-note}
+## Dieciséis preguntas
+
+**Planteamiento**
+
+1. ¿Puedes decir en una frase qué decisión apoya tu modelo?
+2. ¿Está justificado por qué es regresión o clasificación?
+3. ¿Están declarados los costos relativos de cada tipo de error?
+
+**Datos**
+
+4. ¿Está declarada la unidad de análisis y la población representada?
+5. ¿Está declarado el tamaño efectivo (positivos o grupos), no solo el número de filas?
+6. ¿Revisaste variable por variable si está disponible en el momento de predecir?
+7. ¿Hay bitácora de decisiones de limpieza, con su impacto?
+
+**Modelado**
+
+8. ¿Todo el preprocesamiento está dentro del `Pipeline`?
+9. ¿Hay un modelo base en la tabla de resultados?
+10. ¿Todos los modelos se compararon en condiciones idénticas?
+11. ¿Los hiperparámetros se eligieron sin mirar el conjunto de prueba?
+12. ¿El esquema de validación respeta la estructura de los datos?
+
+**Resultados**
+
+13. ¿Reportas dispersión además de la media?
+14. ¿Revisaste el desempeño por segmentos?
+15. ¿Están declaradas las limitaciones y los usos desaconsejados?
+
+**Reproducibilidad**
+
+16. ¿El cuaderno corre completo, de la primera celda a la última, con semilla fija y rutas relativas?
+:::
+
+## Errores que cuestan puntos
+
+| Error | Por qué pesa tanto |
+|---|---|
+| No hay modelo base | Ningún resultado es interpretable sin punto de comparación |
+| Preprocesamiento fuera del `Pipeline` | Invalida toda la evaluación posterior |
+| Umbral o hiperparámetro elegido mirando el test | El desempeño reportado no es el real |
+| Solo exactitud en un problema desbalanceado | Sugiere que no se entendió el problema |
+| Gráficos sin interpretación | Muestra ejecución, no análisis |
+| Conclusiones que no responden a la pregunta inicial | El proyecto no cerró su propio ciclo |
+| Limitaciones ausentes o escondidas | Genera confianza injustificada en quien decide |
+| Cuaderno que no corre de principio a fin | No es reproducible, luego no es verificable |
+| Decisiones de limpieza sin justificar | No es auditable |
+| Variables sensibles incluidas sin discusión | Riesgo ético y legal no evaluado |
+
+: Errores frecuentes en el proyecto {.striped tbl-colwidths="[44,56]"}
+
+## Calendario sugerido
+
+| Semana | Etapa del proyecto | Cuadernillo de apoyo | Entrega |
+|---|---|---|---|
+| 1 | Problema y datos (Etapas 1–2) | [1](../01-fundamentos/cuadernillo-01.qmd) | — |
+| 2–3 | Exploración y preparación (Etapas 3–4) | [2](../02-preprocesamiento/cuadernillo-02.qmd) | **Actividad 1** (20 %) |
+| 4–5 | Modelo base y regresión (Etapas 5–6) | [3](../03-regresion/cuadernillo-03.qmd) | **Actividad 2** (20 %) |
+| 6 | Clasificación y comparación (Etapa 6) | [4](../04-clasificacion/cuadernillo-04.qmd) | **Actividad 3** (20 %) |
+| 7–8 | Validación, interpretación, comunicación (Etapas 7–11) | [5](../05-validacion/cuadernillo-05.qmd) | **Actividad 4** (20 %) |
+| 9 | Cierre y evaluación final | Todos | **Actividad 5** (20 %) |
+
+: Calendario del proyecto {.striped tbl-colwidths="[10,38,22,30]"}
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>Un proyecto empieza con una <b>decisión</b>, no con un conjunto de datos.</li>
+<li>El tamaño que limita tus conclusiones es el de la clase minoritaria o el número de grupos independientes.</li>
+<li>La bitácora de decisiones es lo que hace auditable tu trabajo.</li>
+<li>El modelo base es obligatorio; la línea base del negocio vale más que la estadística.</li>
+<li>Tres modelos bien comparados valen más que ocho ejecutados.</li>
+<li>Sin dispersión no hay ganador.</li>
+<li>Las limitaciones van en las conclusiones, no en una nota al pie.</li>
+<li>Comunicar es traducir a las unidades de decisión de quien escucha.</li>
+</ul>
+</div>
+```
+
+## Recursos adicionales
+
+- @james2023 — referencia conceptual de todo el curso.
+- @kuhn2019 — decisiones de preparación de datos, con criterios prácticos.
+- @mitchell2019 — cómo documentar un modelo: usos previstos, desempeño por
+  subgrupo y limitaciones.
+- [Quarto · Authoring](https://quarto.org/docs/authoring/markdown-basics.html) —
+  si quieres entregar tu informe con este mismo formato, reproducible desde el
+  código.

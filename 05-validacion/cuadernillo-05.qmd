@@ -1,0 +1,788 @@
+---
+title: "Cuadernillo 5 · ¿Podemos confiar en nuestro modelo?"
+subtitle: "Encuentro virtual 5 — Validación, diagnóstico, estabilidad, sesgos, ética y comunicación"
+description: "Validación cruzada agrupada, diagnóstico, estabilidad, importancia de variables, fuga de información, sesgos en los datos, ética del modelado predictivo y comunicación de resultados."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Encuentro</span><span class="vl">Virtual 5</span></div>
+<div class="ficha-item"><span class="et">Semana</span><span class="vl">7</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">3 · Validación y diagnóstico</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">120–150 minutos</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span><span class="ra ra-15">RA15</span></span></div>
+<div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 4 · Proyecto integrador y video (20 %)</span></div>
+</div>
+<hr>
+<div class="previos"><strong>Conocimientos previos:</strong> Cuadernillos <a href="../01-fundamentos/cuadernillo-01.html">1</a> a <a href="../04-clasificacion/cuadernillo-04.html">4</a>. Este cuadernillo revisa críticamente los resultados obtenidos en ellos.</div>
+</div>
+```
+
+## La pregunta detonante
+
+> El Cuadernillo 4 terminó con un Random Forest de AUC 0,82 y una tabla
+> comparativa prolija. El comité quiere implementarlo.
+>
+> Antes de firmar, alguien pregunta: **¿ese 0,82 es lo que vamos a ver en
+> producción?**
+>
+> La respuesta correcta —y la que este cuadernillo va a demostrar con
+> números— es **no**. Y la razón está en algo que el Cuadernillo 4 mencionó de
+> pasada: los 696 registros corresponden a solo 36 empleados.
+
+## Preparación
+
+```{python}
+#| label: setup
+#| code-summary: "Configuración, datos y pipeline de referencia"
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
+
+from sklearn.model_selection import (train_test_split, StratifiedKFold,
+                                     StratifiedGroupKFold, cross_val_score,
+                                     cross_val_predict, learning_curve)
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_auc_score, recall_score, precision_score
+
+SEMILLA = 42
+np.random.seed(SEMILLA)
+plt.rcParams.update({"figure.figsize": (7, 4.2), "axes.grid": True,
+                     "grid.alpha": 0.25, "axes.spines.top": False,
+                     "axes.spines.right": False, "font.size": 10})
+
+ausentismo = pd.read_csv("../datos/crudos/ausentismo_laboral.csv")
+eventos = ausentismo[ausentismo.horas_ausencia > 0].copy()
+eventos["ausencia_prolongada"] = (eventos.horas_ausencia > 8).astype(int)
+
+frecuencias = eventos.motivo_cod.value_counts()
+eventos["motivo"] = np.where(
+    eventos.motivo_cod.isin(frecuencias[frecuencias >= 20].index),
+    "M" + eventos.motivo_cod.astype(str), "OTROS")
+
+cols_num = ["gasto_transporte", "distancia_km", "antiguedad_anios", "edad",
+            "carga_trabajo_dia", "cumplimiento_meta", "n_hijos", "n_mascotas"]
+cols_cat = ["motivo", "dia_semana", "estacion", "educacion"]
+
+X = eventos[cols_num + cols_cat]
+y = eventos["ausencia_prolongada"]
+grupos = eventos["id_empleado"]
+
+preprocesador = ColumnTransformer([
+    ("num", Pipeline([("imputar", SimpleImputer(strategy="median")),
+                      ("escalar", StandardScaler())]), cols_num),
+    ("cat", OneHotEncoder(handle_unknown="ignore", drop="first",
+                          sparse_output=False), cols_cat),
+])
+
+modelos = {
+    "Logística balanceada": LogisticRegression(
+        max_iter=3000, class_weight="balanced", random_state=SEMILLA),
+    "Random Forest": RandomForestClassifier(
+        n_estimators=400, min_samples_leaf=2,
+        class_weight="balanced_subsample", random_state=SEMILLA, n_jobs=-1),
+}
+
+print(f"{len(eventos)} eventos · {grupos.nunique()} empleados · "
+      f"{y.mean():.1%} ausencias prolongadas")
+```
+
+## Parte 1 · La validación cruzada también se puede hacer mal
+
+### Cómo funciona, y qué supone
+
+La validación cruzada de $k$ pliegues divide los datos en $k$ partes, entrena
+con $k-1$ y valida con la restante, rotando. Se obtienen $k$ estimaciones del
+desempeño: una media y una dispersión.
+
+Su supuesto fundamental es que **las observaciones son independientes**. Si dos
+filas comparten algo que el modelo puede aprender, y una cae en entrenamiento y
+otra en validación, la estimación se infla.
+
+```{python}
+#| label: estructura-grupos
+#| code-summary: "¿Son independientes nuestros 696 registros?"
+conteo = grupos.value_counts()
+
+print(f"Registros: {len(eventos)}")
+print(f"Empleados: {grupos.nunique()}")
+print(f"Registros por empleado — mín: {conteo.min()}, mediana: {conteo.median():.0f}, "
+      f"máx: {conteo.max()}")
+print(f"\nLos 5 empleados con más registros acumulan "
+      f"{conteo.head(5).sum()} eventos ({conteo.head(5).sum()/len(eventos):.0%} del total).")
+```
+
+::: {.callout-important appearance="simple"}
+## Las filas no son independientes
+
+Un mismo trabajador aparece decenas de veces, siempre con la misma edad, la
+misma distancia al trabajo, el mismo gasto de transporte y el mismo número de
+hijos. Esas variables **identifican** a la persona casi por completo.
+
+Si el empleado 3 tiene diez registros y siete caen en entrenamiento y tres en
+validación, el modelo no necesita aprender un patrón general: le basta con
+reconocer al empleado 3 y recordar cómo se comportó.
+:::
+
+### La medición: partición aleatoria frente a partición por empleado
+
+```{python}
+#| label: cv-comparada
+#| code-summary: "El mismo modelo, dos esquemas de validación"
+cv_aleatorio = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEMILLA)
+cv_agrupado = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=SEMILLA)
+
+filas = []
+for nombre, estimador in modelos.items():
+    flujo = Pipeline([("prep", preprocesador), ("modelo", estimador)])
+
+    aleatorio = cross_val_score(flujo, X, y, cv=cv_aleatorio, scoring="roc_auc")
+    agrupado = cross_val_score(flujo, X, y, cv=cv_agrupado,
+                               groups=grupos, scoring="roc_auc")
+
+    filas.append({
+        "Modelo": nombre,
+        "AUC · partición aleatoria": aleatorio.mean(),
+        "± sd": aleatorio.std(),
+        "AUC · partición por empleado": agrupado.mean(),
+        "± sd ": agrupado.std(),
+        "Optimismo": aleatorio.mean() - agrupado.mean(),
+    })
+
+tabla_cv = pd.DataFrame(filas)
+tabla_cv.style.format({
+    "AUC · partición aleatoria": "{:.3f}", "± sd": "{:.3f}",
+    "AUC · partición por empleado": "{:.3f}", "± sd ": "{:.3f}",
+    "Optimismo": "{:+.3f}"}).hide(axis="index") \
+    .background_gradient(cmap="Reds", subset=["Optimismo"])
+```
+
+```{python}
+#| label: lectura-cv
+#| echo: false
+opt_rf = tabla_cv.loc[tabla_cv.Modelo == "Random Forest", "Optimismo"].iloc[0]
+opt_lg = tabla_cv.loc[tabla_cv.Modelo == "Logística balanceada", "Optimismo"].iloc[0]
+
+print(f"Random Forest:        el AUC cae {abs(opt_rf):.3f} puntos al validar por empleado")
+print(f"Logística balanceada: el AUC cae {abs(opt_lg):.3f} puntos")
+print("\nLa diferencia entre ambos no es casual. Sigue leyendo.")
+```
+
+::: {.callout-important}
+## El modelo más flexible es el que más se aprovecha de la fuga
+
+El Random Forest pierde mucho más que la logística. La razón es estructural:
+
+- La **regresión logística** solo puede trazar un hiperplano. No tiene capacidad
+  para memorizar individuos, así que la estimación optimista y la honesta casi
+  coinciden.
+- El **Random Forest**, con cientos de árboles profundos, puede aislar
+  combinaciones de valores que corresponden a un único trabajador. Cuando ese
+  trabajador aparece también en validación, cobra la recompensa.
+
+**Consecuencia práctica:** al comparar modelos bajo un esquema de validación
+inadecuado, los modelos flexibles salen favorecidos de forma artificial. La
+comparación del Cuadernillo 4 estaba sesgada a favor del Random Forest, y solo
+se ve al cambiar el esquema de partición.
+
+Con partición por empleado, la ventaja del Random Forest sobre la logística
+desaparece —y la logística es más interpretable y más barata de explicar.
+:::
+
+### Qué esquema usar, y cuándo
+
+| Esquema | Cuándo usarlo | Qué previene |
+|---|---|---|
+| `KFold` | Observaciones independientes, respuesta continua | — |
+| `StratifiedKFold` | Clasificación, sobre todo con clases desbalanceadas | Pliegues sin casos de la clase minoritaria |
+| `GroupKFold` / `StratifiedGroupKFold` | Varias filas por individuo, empresa, hogar o sede | Que el mismo individuo esté en entrenamiento y validación |
+| `TimeSeriesSplit` | Datos con orden temporal | Entrenar con el futuro para predecir el pasado |
+| `RepeatedStratifiedKFold` | Muestras pequeñas | Que el resultado dependa de una partición afortunada |
+
+: Esquemas de validación cruzada {.striped tbl-colwidths="[28,40,32]"}
+
+```{=html}
+<div class="micro decide"><div class="micro-cab"><span class="tipo">Decide</span><span class="titulo">Elegir el esquema correcto</span><span class="tiempo">10 min</span></div>
+<p>Para cada situación, indica qué esquema de validación usarías y qué pasaría si usaras <code>KFold</code> simple:</p>
+<ol>
+<li>Predecir el reingreso hospitalario a 30 días, con pacientes que pueden tener varios ingresos.</li>
+<li>Predecir la demanda semanal de un centro de distribución con tres años de historia.</li>
+<li>Predecir el precio de viviendas, con varios inmuebles por edificio.</li>
+<li>Predecir la deserción estudiantil con un registro por estudiante y semestre.</li>
+</ol>
+<p>Los cuatro casos tienen estructura. Identifica cuál en cada uno.</p></div>
+```
+
+## Parte 2 · Diagnóstico: mirar dónde falla, no solo cuánto
+
+Un número global esconde el comportamiento por segmentos. El desempeño rara vez
+es homogéneo.
+
+```{python}
+#| label: predicciones-honestas
+#| code-summary: "Predicciones fuera de muestra, con partición por empleado"
+flujo_logistica = Pipeline([("prep", preprocesador),
+                            ("modelo", modelos["Logística balanceada"])])
+
+proba_oof = cross_val_predict(flujo_logistica, X, y, cv=cv_agrupado,
+                              groups=grupos, method="predict_proba")[:, 1]
+
+print(f"AUC global (fuera de muestra): {roc_auc_score(y, proba_oof):.3f}")
+print(f"Predicciones obtenidas para los {len(proba_oof)} eventos,")
+print("cada una hecha por un modelo que NO vio a ese empleado.")
+```
+
+```{python}
+#| label: desempeno-segmentos
+#| code-summary: "El mismo modelo, distintos segmentos"
+diagnostico = eventos.copy()
+diagnostico["proba"] = proba_oof
+diagnostico["pred"] = (proba_oof >= 0.30).astype(int)
+
+def resumen_segmento(df, etiqueta):
+    if df.ausencia_prolongada.nunique() < 2:
+        auc = np.nan
+    else:
+        auc = roc_auc_score(df.ausencia_prolongada, df.proba)
+    return {
+        "Segmento": etiqueta,
+        "n": len(df),
+        "% prolongadas": df.ausencia_prolongada.mean(),
+        "AUC": auc,
+        "Sensibilidad": recall_score(df.ausencia_prolongada, df.pred,
+                                     zero_division=0),
+    }
+
+segmentos = [resumen_segmento(diagnostico, "TODOS")]
+for etiqueta, sub in diagnostico.groupby("estacion"):
+    segmentos.append(resumen_segmento(sub, f"Estación {etiqueta}"))
+for etiqueta, sub in diagnostico.groupby(pd.cut(diagnostico.edad,
+                                                [26, 32, 38, 60],
+                                                labels=["27–32", "33–38", "39+"]),
+                                         observed=True):
+    segmentos.append(resumen_segmento(sub, f"Edad {etiqueta}"))
+
+pd.DataFrame(segmentos).style.format({
+    "% prolongadas": "{:.1%}", "AUC": "{:.3f}", "Sensibilidad": "{:.1%}"}) \
+    .hide(axis="index")
+```
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">Un promedio que esconde diferencias</span><span class="tiempo">10 min</span></div>
+<p>Mira la tabla por segmentos:</p>
+<ol>
+<li>¿En qué segmento el modelo funciona peor? ¿Cuánto peor que el promedio global?</li>
+<li>¿Ese segmento tiene pocos casos, o el modelo realmente falla allí? ¿Cómo distingues ambas cosas?</li>
+<li>Si el sistema se implementa, ¿para qué grupo de trabajadores sería menos confiable?</li>
+<li>¿Qué frase incluirías en el informe para que quien decide sepa esto?</li>
+</ol>
+<p>La pregunta 3 tiene consecuencias que no son técnicas. Es el puente hacia la sección de ética.</p></div>
+```
+
+### Calibración: ¿son creíbles las probabilidades?
+
+Un modelo puede ordenar bien (AUC alto) y aun así entregar probabilidades
+engañosas. Si dice «0,30» para cien casos, ¿ocurren unos treinta?
+
+```{python}
+#| label: fig-calibracion
+#| fig-cap: "Curva de calibración. Los puntos sobre la diagonal indican probabilidades creíbles; por encima, el modelo subestima; por debajo, sobreestima."
+from sklearn.calibration import calibration_curve
+
+proba_rf_oof = cross_val_predict(
+    Pipeline([("prep", preprocesador), ("modelo", modelos["Random Forest"])]),
+    X, y, cv=cv_agrupado, groups=grupos, method="predict_proba")[:, 1]
+
+fig, ax = plt.subplots(figsize=(6.2, 4.4))
+for etiqueta, proba, color in [("Logística balanceada", proba_oof, "#17808C"),
+                               ("Random Forest", proba_rf_oof, "#B4543A")]:
+    obs, pred = calibration_curve(y, proba, n_bins=6, strategy="quantile")
+    ax.plot(pred, obs, "o-", color=color, linewidth=1.8, markersize=5,
+            label=etiqueta)
+
+ax.plot([0, 1], [0, 1], "--", color="#6B7A8C", linewidth=1.1,
+        label="Calibración perfecta")
+ax.set_xlabel("Probabilidad predicha (promedio del grupo)")
+ax.set_ylabel("Frecuencia observada")
+ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+ax.legend(frameon=False, fontsize=9)
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-note appearance="simple"}
+## Por qué la calibración importa aquí
+
+El umbral de costo del Cuadernillo 4 se eligió sobre probabilidades. Si esas
+probabilidades no están calibradas, el umbral «óptimo» se calculó sobre una
+escala distorsionada.
+
+Además, `class_weight="balanced"` **descalibra deliberadamente** el modelo:
+infla las probabilidades de la clase minoritaria. Es útil para mover el punto de
+operación, pero hace que «0,30» deje de significar «30 % de probabilidad».
+
+Si necesitas probabilidades interpretables —por ejemplo, para multiplicarlas por
+un costo—, usa el modelo sin `class_weight` y mueve el umbral, o recalibra con
+`CalibratedClassifierCV`.
+:::
+
+### Curva de aprendizaje: ¿el problema son los datos o el modelo?
+
+```{python}
+#| label: fig-aprendizaje
+#| fig-cap: "Curva de aprendizaje con validación por empleado. La distancia entre las curvas indica varianza; su nivel de convergencia, sesgo."
+tamanos, punt_train, punt_val = learning_curve(
+    flujo_logistica, X, y, groups=grupos, cv=cv_agrupado,
+    scoring="roc_auc", train_sizes=np.linspace(0.2, 1.0, 8),
+    random_state=SEMILLA, n_jobs=-1)
+
+fig, ax = plt.subplots(figsize=(7.5, 4.2))
+ax.plot(tamanos, punt_train.mean(axis=1), "o-", color="#17808C",
+        label="Entrenamiento")
+ax.fill_between(tamanos, punt_train.mean(axis=1) - punt_train.std(axis=1),
+                punt_train.mean(axis=1) + punt_train.std(axis=1),
+                alpha=0.15, color="#17808C")
+ax.plot(tamanos, punt_val.mean(axis=1), "o-", color="#B4543A",
+        label="Validación (por empleado)")
+ax.fill_between(tamanos, punt_val.mean(axis=1) - punt_val.std(axis=1),
+                punt_val.mean(axis=1) + punt_val.std(axis=1),
+                alpha=0.15, color="#B4543A")
+ax.set_xlabel("Número de eventos de entrenamiento")
+ax.set_ylabel("AUC")
+ax.legend(frameon=False)
+plt.tight_layout()
+plt.show()
+```
+
+| Lo que se observa | Diagnóstico | Qué hacer |
+|---|---|---|
+| Las dos curvas convergen en un valor bajo | Sesgo alto (subajuste) | Modelo más flexible, más variables, menos regularización |
+| Queda una brecha grande y la validación aún sube | Varianza alta | Más datos, modelo más simple, más regularización |
+| Las curvas convergen y la validación se aplana | Se llegó al límite de estos predictores | Más datos **no** ayudará: hacen falta variables nuevas |
+
+: Cómo leer una curva de aprendizaje {.striped tbl-colwidths="[34,26,40]"}
+
+## Parte 3 · Estabilidad: ¿el resultado sobrevive a un cambio de partición?
+
+Una conclusión que cambia al cambiar la semilla no es una conclusión.
+
+```{python}
+#| label: estabilidad
+#| code-summary: "El mismo experimento, diez semillas distintas"
+registro = []
+for semilla in range(10):
+    cv_s = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=semilla)
+    for nombre, estimador in modelos.items():
+        estimador_s = estimador.__class__(**{**estimador.get_params(),
+                                             "random_state": semilla})
+        flujo = Pipeline([("prep", preprocesador), ("modelo", estimador_s)])
+        puntajes = cross_val_score(flujo, X, y, cv=cv_s, groups=grupos,
+                                   scoring="roc_auc")
+        registro.append({"semilla": semilla, "Modelo": nombre,
+                         "AUC": puntajes.mean()})
+
+estabilidad = pd.DataFrame(registro)
+
+resumen_est = estabilidad.groupby("Modelo").AUC.agg(
+    media="mean", desviacion="std", minimo="min", maximo="max")
+resumen_est["rango"] = resumen_est.maximo - resumen_est.minimo
+resumen_est.style.format("{:.3f}")
+```
+
+```{python}
+#| label: fig-estabilidad
+#| fig-cap: "AUC de cada modelo en diez repeticiones con semillas distintas. Las cajas se superponen: la diferencia entre modelos no es concluyente."
+fig = px.box(estabilidad, x="Modelo", y="AUC", points="all",
+             color="Modelo", template="simple_white",
+             color_discrete_map={"Logística balanceada": "#17808C",
+                                 "Random Forest": "#B4543A"})
+fig.update_layout(height=390, showlegend=False, xaxis_title="",
+                  margin=dict(t=30, b=40))
+fig
+```
+
+::: {.callout-important}
+## La regla de decisión que sale de este gráfico
+
+Si el rango de variación de un modelo entre semillas es del mismo orden que la
+diferencia entre los dos modelos, **no hay evidencia para preferir uno sobre el
+otro por desempeño**.
+
+Cuando eso ocurre, la decisión se toma con otros criterios, que son igual de
+legítimos: interpretabilidad, costo computacional, facilidad de mantenimiento,
+capacidad de explicar una alerta a quien la recibe.
+
+«Los dos modelos son equivalentes en desempeño, así que elegimos el que se puede
+explicar» es una conclusión profesional. «El Random Forest ganó por 0,004 de
+AUC» no lo es.
+:::
+
+### Estabilidad de la importancia de variables
+
+```{python}
+#| label: estabilidad-importancia
+#| code-summary: "¿Las variables importantes son siempre las mismas?"
+from sklearn.inspection import permutation_importance
+
+rangos = []
+for semilla in range(5):
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        X, y, test_size=0.3, stratify=y, random_state=semilla)
+    flujo = Pipeline([("prep", preprocesador),
+                      ("modelo", modelos["Logística balanceada"])]).fit(X_tr, y_tr)
+    imp = permutation_importance(flujo, X_te, y_te, scoring="roc_auc",
+                                 n_repeats=15, random_state=semilla, n_jobs=-1)
+    orden = pd.Series(imp.importances_mean, index=X.columns) \
+              .rank(ascending=False).astype(int)
+    rangos.append(orden.rename(f"semilla {semilla}"))
+
+tabla_rangos = pd.concat(rangos, axis=1)
+tabla_rangos["rango medio"] = tabla_rangos.mean(axis=1).round(1)
+tabla_rangos["variación"] = tabla_rangos.iloc[:, :5].max(axis=1) - \
+                            tabla_rangos.iloc[:, :5].min(axis=1)
+tabla_rangos.sort_values("rango medio").style.background_gradient(
+    cmap="Oranges", subset=["variación"])
+```
+
+```{=html}
+<div class="micro compara"><div class="micro-cab"><span class="tipo">Compara</span><span class="titulo">¿Qué variables son realmente importantes?</span><span class="tiempo">10 min</span></div>
+<p>Observa la columna <code>variación</code> de la tabla anterior: es la diferencia entre la mejor y la peor posición que ocupó cada variable en cinco particiones distintas.</p>
+<ol>
+<li>¿Qué variables mantienen su posición? ¿Cuáles saltan varios puestos?</li>
+<li>Un informe afirma «las tres variables más importantes son A, B y C». ¿Es defendible con esta evidencia?</li>
+<li>¿Cómo reformularías esa afirmación para que sea honesta?</li>
+</ol></div>
+```
+
+## Parte 4 · Sesgos en los datos y ética del modelado predictivo
+
+Hasta aquí, todo fue técnico. Esta sección no lo es, y es la que más consecuencias
+tiene.
+
+### El modelo no es neutral porque use matemáticas
+
+Estos datos contienen `imc`, `peso_kg`, `estatura_cm`, `consumo_alcohol_social`
+y `fumador_social`. Son atributos personales, y algunos son **datos de salud**.
+Nada impide técnicamente incluirlos. Midamos qué aportan:
+
+```{python}
+#| label: etica-medicion
+#| code-summary: "¿Cuánto aportan realmente las variables sensibles?"
+num_sensibles = cols_num + ["imc", "peso_kg", "estatura_cm"]
+cat_sensibles = cols_cat + ["consumo_alcohol_social", "fumador_social"]
+
+prep_sensible = ColumnTransformer([
+    ("num", Pipeline([("imputar", SimpleImputer(strategy="median")),
+                      ("escalar", StandardScaler())]), num_sensibles),
+    ("cat", OneHotEncoder(handle_unknown="ignore", drop="first",
+                          sparse_output=False), cat_sensibles),
+])
+
+sin_sensibles = cross_val_score(
+    Pipeline([("prep", preprocesador), ("modelo", modelos["Logística balanceada"])]),
+    X, y, cv=cv_agrupado, groups=grupos, scoring="roc_auc")
+
+con_sensibles = cross_val_score(
+    Pipeline([("prep", prep_sensible), ("modelo", modelos["Logística balanceada"])]),
+    eventos[num_sensibles + cat_sensibles], y,
+    cv=cv_agrupado, groups=grupos, scoring="roc_auc")
+
+pd.DataFrame({
+    "Conjunto de predictoras": ["Sin variables personales sensibles",
+                                "Con IMC, peso, estatura, alcohol y tabaco"],
+    "AUC medio": [sin_sensibles.mean(), con_sensibles.mean()],
+    "Desviación entre pliegues": [sin_sensibles.std(), con_sensibles.std()],
+}).style.format({"AUC medio": "{:.3f}",
+                 "Desviación entre pliegues": "{:.3f}"}).hide(axis="index")
+```
+
+```{python}
+#| label: etica-lectura
+#| echo: false
+ganancia = con_sensibles.mean() - sin_sensibles.mean()
+print(f"Ganancia de AUC al incluir las variables sensibles: {ganancia:+.3f}")
+print(f"Desviación entre pliegues del modelo base:          {sin_sensibles.std():.3f}")
+print(f"\nLa ganancia es {abs(ganancia)/sin_sensibles.std():.1f} veces la desviación:")
+print("no es distinguible del ruido muestral.")
+```
+
+::: {.callout-important}
+## El costo y el beneficio, puestos uno al lado del otro
+
+**Beneficio medido:** una ganancia de AUC que no se distingue del ruido.
+
+**Costo:** un sistema que marca a un trabajador como «riesgo de ausencia
+prolongada» en función de su índice de masa corporal o de si consume alcohol
+socialmente. Si Recursos Humanos actúa sobre esa alerta, la decisión laboral
+queda condicionada por características personales y de salud.
+
+En Colombia, los datos relativos a la salud son **datos sensibles** bajo la
+Ley 1581 de 2012, y su tratamiento tiene restricciones específicas.
+
+La decisión correcta no requiere un debate filosófico: las variables no aportan
+desempeño medible y sí introducen un riesgo grave. **Se excluyen.**
+
+Cuando la ganancia sí sea sustancial, la pregunta será más difícil. Pero
+entonces la discusión será honesta, porque estará basada en una medición y no en
+una intuición.
+:::
+
+### Cuatro formas en que el sesgo entra al modelo
+
+| Tipo de sesgo | Cómo aparece | Ejemplo en este problema |
+|---|---|---|
+| **De muestreo** | Los datos no representan a la población de uso | 36 empleados de una sola empresa de mensajería en Brasil, 2007–2010 |
+| **De medición** | La variable registrada no es el concepto de interés | `horas_ausencia` es lo que el sistema registró, no la ausencia real |
+| **Histórico** | Los datos reflejan prácticas pasadas, incluidas las injustas | Si la empresa ya vigilaba más a ciertos trabajadores, sus ausencias están mejor registradas |
+| **De despliegue** | El modelo se usa para algo distinto de aquello para lo que fue construido | Se construyó para cubrir turnos; se usa para evaluar desempeño |
+
+: Sesgos en el modelado predictivo {.striped tbl-colwidths="[20,36,44]"}
+
+::: {.callout-warning}
+## El sesgo de despliegue es el más peligroso, y el menos discutido
+
+Un modelo entrenado para **anticipar la necesidad de un reemplazo de turno** es
+una herramienta logística razonable.
+
+El mismo modelo, usado para **decidir renovaciones de contrato**, es un
+instrumento de discriminación: penaliza a quien tiene enfermedades
+osteomusculares o sufrió un accidente, que es precisamente lo que las
+protecciones laborales existen para evitar.
+
+El modelo es idéntico. Lo que cambia es el uso. Por eso la documentación del
+modelo debe declarar explícitamente **para qué sirve y para qué no**
+[@mitchell2019]. @obermeyer2019 documenta un caso real en el sector salud donde
+un algoritmo ampliamente usado produjo disparidades graves, no por su
+matemática, sino por la variable que se eligió como objetivo.
+:::
+
+```{=html}
+<div class="micro discute"><div class="micro-cab"><span class="tipo">Discute</span><span class="titulo">Para el encuentro virtual</span><span class="tiempo">20 min</span></div>
+<p>La empresa implementa el sistema. Seis meses después, el gerente de Recursos Humanos propone usar las alertas acumuladas como insumo en la evaluación anual de desempeño. Argumenta: «el modelo ya existe, los datos son de la empresa y esto es simplemente aprovechar mejor la información».</p>
+<p>Prepara una posición argumentada:</p>
+<ol>
+<li>¿Qué cambia entre el uso original y el propuesto, en términos de las consecuencias para el trabajador?</li>
+<li>El modelo usa el motivo reportado, que codifica diagnósticos. ¿Qué implica eso para el uso propuesto?</li>
+<li>¿Qué responsabilidad tiene el analista que construyó el modelo? ¿Puede limitarse a decir que él solo hizo el código?</li>
+<li>Si el analista se opone y la decisión se toma igual, ¿qué debería quedar por escrito?</li>
+</ol>
+<p>No hay una respuesta única. Sí hay respuestas mal argumentadas.</p></div>
+```
+
+## Parte 5 · Comunicar: el mismo resultado, dos audiencias
+
+```{python}
+#| label: resultado-final
+#| code-summary: "El resultado final, honestamente estimado"
+umbral_operativo = 0.30
+pred_final = (proba_oof >= umbral_operativo).astype(int)
+
+vp = int(((pred_final == 1) & (y == 1)).sum())
+fp = int(((pred_final == 1) & (y == 0)).sum())
+fn = int(((pred_final == 0) & (y == 1)).sum())
+vn = int(((pred_final == 0) & (y == 0)).sum())
+
+print(f"Validación por empleado · umbral {umbral_operativo}\n")
+print(f"  AUC:           {roc_auc_score(y, proba_oof):.3f}")
+print(f"  Sensibilidad:  {vp/(vp+fn):.1%}  ({vp} de {vp+fn} ausencias largas detectadas)")
+print(f"  Precisión:     {vp/(vp+fp):.1%}  (de cada 10 alertas, "
+      f"{10*vp/(vp+fp):.0f} son correctas)")
+print(f"  Alertas/año:   {(vp+fp)/3:.0f}  (sobre 3 años de datos)")
+```
+
+::: {.panel-tabset}
+
+### Para un público técnico
+
+> Se ajustó una regresión logística con ponderación de clases sobre 696 eventos
+> de ausencia correspondientes a 36 empleados. Las predictoras incluyen motivo
+> reportado (agrupado en 12 categorías), día de la semana, estación, nivel
+> educativo y siete variables numéricas estandarizadas. El preprocesamiento
+> —imputación por mediana, codificación *one-hot* y estandarización— se ejecuta
+> dentro de un `Pipeline` para evitar fuga de información.
+>
+> La evaluación se realizó con `StratifiedGroupKFold` de 5 pliegues, agrupando
+> por empleado, dado que los registros no son independientes. Bajo partición
+> aleatoria el AUC del Random Forest era `{python} f"{tabla_cv.loc[1,'AUC · partición aleatoria']:.3f}".replace(".", ",")`;
+> con partición por empleado desciende a
+> `{python} f"{tabla_cv.loc[1,'AUC · partición por empleado']:.3f}".replace(".", ",")`.
+> La logística resulta más estable y se prefiere por interpretabilidad.
+>
+> Con umbral 0,30, la sensibilidad es del
+> `{python} f"{vp/(vp+fn):.1%}".replace(".", ",")` y la precisión del
+> `{python} f"{vp/(vp+fp):.1%}".replace(".", ",")`. Diez repeticiones con
+> semillas distintas dan un rango de AUC de
+> `{python} f"{resumen_est.loc['Logística balanceada','rango']:.3f}".replace(".", ",")`.
+> Las variables personales de salud fueron excluidas: su aporte no es
+> distinguible del ruido y su uso plantea riesgos legales y éticos.
+>
+> **Limitaciones:** 63 eventos positivos; una sola empresa; datos de 2007–2010;
+> el desempeño no es homogéneo entre segmentos.
+
+### Para el comité directivo
+
+> **Qué hace el sistema.** Cuando un trabajador reporta una ausencia, estima si
+> durará más de una jornada, para que operaciones pueda activar un reemplazo a
+> tiempo.
+>
+> **Qué tan bien funciona.** Detecta alrededor de
+> **`{python} f"{vp/(vp+fn):.0%}"` de las ausencias largas**. De cada diez
+> alertas que emite, aproximadamente
+> **`{python} f"{10*vp/(vp+fp):.0f}"` resultan ciertas**; las demás son reemplazos
+> preparados que no hicieron falta.
+>
+> **Qué significa eso en la operación.** Genera unas
+> `{python} f"{(vp+fp)/3:.0f}"` alertas al año. El costo de una alerta falsa es
+> medio día de salario; el de una ausencia no anticipada, un turno sin cubrir.
+> Con esa relación de costos, el sistema conviene.
+>
+> **Qué no hace.** No predice quién se va a ausentar: solo estima la duración una
+> vez reportada la ausencia. **No debe usarse para evaluar desempeño ni para
+> decisiones contractuales**: no fue construido para eso y su uso en ese contexto
+> sería discriminatorio.
+>
+> **Qué necesita.** Revisión semestral del desempeño. Si la operación cambia
+> —nuevas rutas, nuevo personal, nuevos turnos—, el modelo debe reentrenarse.
+
+:::
+
+::: {.callout-tip appearance="simple"}
+## Las dos versiones dicen lo mismo
+
+La versión para el comité no es la técnica «simplificada»: es la misma
+información traducida a las unidades en que esa audiencia decide —alertas, días
+de salario, turnos—. Y conserva las limitaciones, incluida la más incómoda.
+
+Un informe ejecutivo que omite las limitaciones no es más claro: es menos
+honesto.
+:::
+
+```{=html}
+<div class="micro reto"><div class="micro-cab"><span class="tipo">Reto</span><span class="titulo">La ficha del modelo</span><span class="tiempo">15 min</span></div>
+<p>Redacta una <i>model card</i> de una página para este modelo, con estas secciones:</p>
+<ol>
+<li><b>Uso previsto</b> y <b>usos explícitamente desaconsejados</b>.</li>
+<li><b>Datos de entrenamiento:</b> origen, período, población representada.</li>
+<li><b>Desempeño:</b> métrica principal, esquema de validación, y desempeño por segmento.</li>
+<li><b>Limitaciones conocidas.</b></li>
+<li><b>Consideraciones éticas:</b> variables excluidas y por qué.</li>
+<li><b>Mantenimiento:</b> cada cuánto revisar y qué señal indica que hay que reentrenar.</li>
+</ol>
+<p>Este documento es parte de lo que se espera en el proyecto integrador, y es la diferencia entre entregar un modelo y entregar un sistema.</p></div>
+```
+
+## Lista de verificación antes de entregar cualquier modelo
+
+::: {.callout-note}
+## Doce preguntas
+
+**Datos**
+
+1. ¿Está declarada la unidad de análisis y la población representada?
+2. ¿Hay estructura de grupos, tiempo o jerarquía en los datos?
+3. ¿Alguna predictora se conoce solo *después* del momento de predecir?
+
+**Validación**
+
+4. ¿El esquema de validación respeta la estructura de los datos?
+5. ¿Todo el preprocesamiento ocurre dentro del `Pipeline`?
+6. ¿El conjunto de prueba se usó una sola vez, al final?
+7. ¿El resultado se reporta con su dispersión, no solo con la media?
+
+**Modelo**
+
+8. ¿Hay un modelo base con el cual comparar?
+9. ¿La métrica principal corresponde al objetivo del problema?
+10. ¿El resultado es estable ante cambios de semilla?
+
+**Uso**
+
+11. ¿Está declarado el dominio de validez y los usos desaconsejados?
+12. ¿Se revisó qué variables podrían producir discriminación, y se midió su aporte?
+:::
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>La validación cruzada supone independencia. Si hay grupos, se valida por grupo o la estimación es optimista.</li>
+<li>Los modelos más flexibles se benefician más de la fuga: una comparación bajo validación inadecuada los favorece artificialmente.</li>
+<li>El desempeño global esconde diferencias por segmento. Hay que reportarlas.</li>
+<li>Un modelo puede ordenar bien (AUC alto) y entregar probabilidades no creíbles. Calibración y discriminación son cosas distintas.</li>
+<li><code>class_weight="balanced"</code> descalibra deliberadamente. Si necesitas probabilidades interpretables, recalibra.</li>
+<li>La curva de aprendizaje dice si conviene conseguir más datos o cambiar de enfoque.</li>
+<li>Si la variación entre semillas es del orden de la diferencia entre modelos, no hay ganador por desempeño.</li>
+<li>Una variable sensible se evalúa midiendo su aporte real y contrastándolo con el daño potencial.</li>
+<li>El sesgo de despliegue —usar el modelo para algo distinto— es el riesgo menos discutido y el más frecuente.</li>
+<li>Comunicar bien no es simplificar: es traducir a las unidades de decisión de quien escucha, sin omitir las limitaciones.</li>
+</ul>
+</div>
+```
+
+## Errores frecuentes en este tema
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Usar `KFold` con datos agrupados | Desempeño optimista que no se reproduce en producción | `GroupKFold` o `StratifiedGroupKFold` |
+| Reportar solo la media de la validación cruzada | Se declaran ganadores que son ruido | Reportar media, desviación y rango entre semillas |
+| Evaluar solo el desempeño global | Se oculta que el modelo falla en un subgrupo | Reportar por segmentos relevantes |
+| Confundir AUC alto con probabilidades confiables | El umbral de costo se calcula sobre una escala distorsionada | Revisar la curva de calibración |
+| Elegir el modelo solo por la métrica | Se descarta interpretabilidad y mantenibilidad sin razón | Usar criterios adicionales cuando el desempeño empata |
+| Incluir variables sensibles sin evaluarlas | Riesgo legal y discriminación, a menudo sin ganancia | Medir el aporte y contrastarlo con el daño potencial |
+| No declarar los usos desaconsejados | El modelo termina usado para lo que no debía | Documentar el uso previsto en una ficha del modelo |
+| Entregar el modelo sin plan de monitoreo | Se degrada en silencio cuando cambia la operación | Definir frecuencia de revisión y señales de reentrenamiento |
+| Presentar el resultado sin limitaciones | Se genera confianza injustificada en quien decide | Incluir limitaciones también en el resumen ejecutivo |
+
+: Errores frecuentes del Cuadernillo 5 {.striped tbl-colwidths="[32,36,32]"}
+
+## Conexión con la Actividad 4 y el proyecto integrador
+
+::: {.callout-note}
+## Actividad institucional 4 · Entrega y presentación del proyecto integrador (20 %, semanas 7 y 8)
+
+El producto es un **video de socialización de resultados**. Lo que este
+cuadernillo aporta directamente:
+
+- El esquema de validación correcto para *tu* problema, justificado.
+- El diagnóstico por segmentos y el análisis de estabilidad.
+- La discusión de sesgos y consideraciones éticas, con evidencia.
+- La estructura de la comunicación para un público no técnico.
+
+Para el video, tres recomendaciones concretas:
+
+1. **Empieza por la decisión, no por el método.** Qué problema resuelve y para
+   quién. El pipeline viene después, y en menos tiempo del que crees.
+2. **Un número protagonista, no seis.** Elige la métrica que responde a la
+   pregunta y explícala en las unidades del problema.
+3. **Las limitaciones van dentro, no al final como disculpa.** Un análisis que
+   reconoce sus bordes es más creíble, no menos.
+:::
+
+El [Cuadernillo 6](../06-proyecto/cuadernillo-06.qmd) organiza todo el recorrido
+como un mapa metodológico del proyecto.
+
+## Recursos adicionales
+
+- @james2023, capítulo 5 (métodos de remuestreo) — validación cruzada y
+  *bootstrap*.
+- @kaufman2012 — fuga de información, con casos reales donde pasó inadvertida.
+- @mitchell2019 — *Model Cards for Model Reporting*: la propuesta de documentar
+  usos previstos, desempeño por subgrupo y limitaciones.
+- @obermeyer2019 — cómo la elección de la variable objetivo generó disparidades
+  en un algoritmo de salud ampliamente usado. Lectura obligada para la
+  discusión ética.
+- @mehrabi2021 — panorama de tipos de sesgo y de medidas de equidad algorítmica.
+- [scikit-learn · Cross-validation iterators for grouped data](https://scikit-learn.org/stable/modules/cross_validation.html#cross-validation-iterators-for-grouped-data) —
+  documentación de `GroupKFold` y variantes.
+- [scikit-learn · Probability calibration](https://scikit-learn.org/stable/modules/calibration.html) —
+  cuándo y cómo recalibrar.
+- Ley 1581 de 2012 y Decreto 1377 de 2013 (Colombia) — régimen de protección de
+  datos personales y tratamiento de datos sensibles.

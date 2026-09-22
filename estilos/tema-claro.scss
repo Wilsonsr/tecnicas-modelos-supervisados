@@ -1,0 +1,130 @@
+/*-- scss:defaults --*/
+
+// ── Paleta académica sobria ────────────────────────────────────────────────
+$azul-profundo:   #12304F;
+$azul-medio:      #1D4E7C;
+$teal:            #17808C;
+$teal-claro:      #E6F2F3;
+$terracota:       #B4543A;
+$ambar:           #B07D12;
+$verde:           #2E6B4F;
+$gris-900:        #16202B;
+$gris-700:        #3C4A5A;
+$gris-500:        #6B7A8C;
+$gris-200:        #E2E7EC;
+$gris-100:        #F1F4F7;
+$gris-050:        #F8FAFB;
+
+$primary:         $azul-profundo;
+$secondary:       $gris-500;
+$success:         $verde;
+$info:            $teal;
+$warning:         $ambar;
+$danger:          $terracota;
+$light:           $gris-050;
+$dark:            $gris-900;
+
+$body-bg:         #FFFFFF;
+$body-color:      $gris-900;
+$link-color:      $azul-medio;
+$link-hover-color: $teal;
+
+// ── Tipografía ─────────────────────────────────────────────────────────────
+$font-family-sans-serif: "Source Sans 3", "Source Sans Pro", -apple-system,
+  BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-family-monospace: "JetBrains Mono", "Source Code Pro", ui-monospace,
+  SFMono-Regular, Menlo, Consolas, monospace;
+
+$font-size-root: 16px;
+$headings-font-weight: 650;
+$headings-color: $azul-profundo;
+$line-height-base: 1.65;
+
+// ── Código ─────────────────────────────────────────────────────────────────
+$code-color: $terracota;
+$code-bg: $gris-100;
+$code-block-bg: #FAFBFC;
+$code-block-border-left: $teal;
+$code-block-border-left-style: solid;
+$code-block-border-left-size: 3px;
+
+// ── Callouts ───────────────────────────────────────────────────────────────
+$callout-color-note: $azul-medio;
+$callout-color-tip: $verde;
+$callout-color-important: $terracota;
+$callout-color-caution: $ambar;
+$callout-color-warning: $ambar;
+
+// ── Navbar / sidebar ───────────────────────────────────────────────────────
+$navbar-bg: $azul-profundo;
+$navbar-fg: #FFFFFF;
+$navbar-hl: #9FD4DB;
+$sidebar-bg: $gris-050;
+$sidebar-fg: $gris-700;
+$sidebar-hl: $teal;
+$footer-bg: $gris-100;
+$toc-color: $gris-700;
+$toc-active-border: $teal;
+
+$border-radius: 6px;
+$table-striped-bg: $gris-050;
+$table-border-color: $gris-200;
+
+
+/*-- scss:rules --*/
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300..700;1,400&family=JetBrains+Mono:wght@400;600&display=swap');
+
+body { letter-spacing: 0.005em; }
+
+h1, h2, h3 { letter-spacing: -0.012em; }
+
+h1.title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  border-bottom: 1px solid $gris-200;
+  padding-bottom: 0.35rem;
+  margin-top: 2.6rem;
+}
+
+/* El navbar no debe gritar */
+.navbar-brand { font-weight: 650; letter-spacing: -0.01em; }
+
+/* Tablas más legibles */
+table { font-size: 0.92rem; }
+.table > :not(caption) > * > * { padding: 0.45rem 0.6rem; }
+
+/* Bloques de código */
+div.sourceCode {
+  border-radius: $border-radius;
+  border: 1px solid $gris-200;
+  background-color: $code-block-bg;
+}
+pre code { font-size: 0.86rem; line-height: 1.55; }
+
+/* Callouts algo más discretos */
+.callout {
+  border-radius: $border-radius;
+  border-width: 1px;
+}
+.callout.callout-style-default > .callout-header { font-weight: 600; }
+
+/* Pestañas (tabsets) */
+.panel-tabset > .nav-tabs > .nav-item > .nav-link {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: $gris-500;
+  border: none;
+  border-bottom: 2px solid transparent;
+}
+.panel-tabset > .nav-tabs > .nav-item > .nav-link.active {
+  color: $azul-profundo;
+  border-bottom: 2px solid $teal;
+  background: transparent;
+}
+
+/* Salidas de pandas / dataframes paginados */
+.cell-output table { font-size: 0.84rem; }

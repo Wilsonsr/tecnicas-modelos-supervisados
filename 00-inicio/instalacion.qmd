@@ -1,0 +1,182 @@
+---
+title: "Instalación paso a paso"
+subtitle: "Entorno de trabajo, verificación y solución de problemas frecuentes"
+description: "Cómo dejar listo el entorno de Python o R para trabajar con el material del curso."
+---
+
+Esta página es de consulta. Si tu entorno ya funciona, sáltala.
+
+## Opción A · Python con entorno virtual (recomendada)
+
+Un entorno virtual aísla las librerías del curso de las del resto de tu sistema.
+Evita el problema más común del semestre: *«a mí me funcionaba y ahora no»*.
+
+::: {.panel-tabset}
+
+### Windows
+
+```{.bash filename="PowerShell"}
+# 1. Ubícate en la carpeta donde clonaste el repositorio
+cd tecnicas-modelos-supervisados
+
+# 2. Crea el entorno
+python -m venv .venv
+
+# 3. Actívalo
+.venv\Scripts\Activate.ps1
+
+# 4. Instala las dependencias
+pip install -r requirements.txt
+```
+
+Si PowerShell bloquea la activación con un mensaje sobre *execution policies*,
+ejecuta una sola vez:
+
+```{.bash filename="PowerShell"}
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+### macOS / Linux
+
+```{.bash filename="Terminal"}
+cd tecnicas-modelos-supervisados
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Conda / Anaconda
+
+```{.bash filename="Terminal"}
+conda create -n supervisados python=3.11
+conda activate supervisados
+pip install -r requirements.txt
+```
+
+Si usas Anaconda Navigator, crea el entorno desde la pestaña *Environments* y
+luego abre una terminal desde ese entorno para ejecutar el `pip install`.
+
+:::
+
+### Verificar que todo quedó bien
+
+Ejecuta esto en Python. Si imprime las versiones sin errores, estás listo:
+
+```{python}
+#| label: verificacion
+import sys
+import importlib
+
+paquetes = ["pandas", "numpy", "sklearn", "matplotlib", "seaborn"]
+
+print(f"Python {sys.version.split()[0]}\n")
+for nombre in paquetes:
+    try:
+        mod = importlib.import_module(nombre)
+        version = getattr(mod, "__version__", "sin versión declarada")
+        print(f"  {nombre:<14} {version}")
+    except ImportError:
+        print(f"  {nombre:<14} NO INSTALADO")
+```
+
+::: {.callout-note appearance="simple"}
+## Versiones mínimas
+
+El material se probó con `scikit-learn ≥ 1.3`, `pandas ≥ 2.0` y `numpy ≥ 1.24`.
+Con versiones anteriores de scikit-learn cambia el nombre de algunos
+parámetros: por ejemplo, `OneHotEncoder(sparse_output=False)` se llamaba
+`sparse=False` antes de la 1.2, y `get_feature_names_out()` no existía antes de
+la 1.0. Si ves un `TypeError` con el nombre de un argumento, es casi seguro un
+problema de versión.
+:::
+
+## Opción B · R con tidymodels
+
+```{.r filename="Consola de R"}
+install.packages(c(
+  "tidymodels",   # marco de trabajo: recipes, parsnip, yardstick, rsample
+  "tidyverse",    # manipulación y gráficos
+  "glmnet",       # Ridge, Lasso, Elastic Net
+  "ranger",       # Random Forest
+  "kknn",         # k-vecinos más cercanos
+  "vip",          # importancia de variables
+  "car",          # VIF y diagnóstico de regresión
+  "GGally",       # matrices de dispersión
+  "janitor"       # limpieza de nombres de columnas
+))
+```
+
+Verificación:
+
+```{.r filename="Consola de R"}
+library(tidymodels)
+tidymodels_prefer()
+sessionInfo()
+```
+
+## Opción C · Sin instalar nada (Google Colab)
+
+1.  Entra a [colab.research.google.com](https://colab.research.google.com) y crea
+    un cuaderno nuevo.
+2.  Carga los datos desde la URL cruda del repositorio:
+
+```{.python}
+import pandas as pd
+
+BASE = ("https://raw.githubusercontent.com/Wilsonsr/"
+        "tecnicas-modelos-supervisados/main/datos/crudos/")
+
+vivienda   = pd.read_csv(BASE + "vivienda_bogota.csv")
+ausentismo = pd.read_csv(BASE + "ausentismo_laboral.csv")
+```
+
+3.  Colab ya trae `pandas`, `numpy`, `scikit-learn`, `matplotlib`, `seaborn` y
+    `plotly`. No necesitas instalar nada más para este curso.
+
+::: {.callout-warning appearance="simple"}
+## Colab reinicia el entorno
+
+Si dejas el cuaderno inactivo, Colab borra las variables en memoria. Cuando
+vuelvas, ejecuta desde la primera celda. Esto es, de hecho, una buena
+disciplina: un cuaderno que no corre de principio a fin no es reproducible.
+:::
+
+## Descargar los datos
+
+Tienes tres formas, en orden de preferencia:
+
+1.  **Clonar el repositorio completo** (recomendado): trae los datos, la
+    estructura de carpetas y las rutas relativas ya funcionando.
+
+    ```{.bash filename="Terminal"}
+    git clone https://github.com/Wilsonsr/tecnicas-modelos-supervisados.git
+    cd tecnicas-modelos-supervisados
+    ```
+
+2.  **Leer directamente desde la URL** (Colab o cualquier entorno con internet),
+    como en la Opción C.
+
+3.  **Descargar los archivos sueltos** desde la carpeta `datos/crudos/` del
+    repositorio en GitHub. Si haces esto, recuerda ajustar las rutas en tu
+    código —y que las rutas absolutas rompen la reproducibilidad.
+
+## Problemas frecuentes
+
+| Síntoma | Causa habitual | Solución |
+|---|---|---|
+| `FileNotFoundError: datos/crudos/...` | Estás ejecutando desde una carpeta distinta a la raíz del proyecto | Verifica tu directorio de trabajo con `import os; os.getcwd()` |
+| `ModuleNotFoundError: sklearn` | El entorno virtual no está activo, o el *kernel* del cuaderno apunta a otro Python | Reactiva el entorno; en Jupyter/VS Code, selecciona el kernel del `.venv` |
+| `TypeError: __init__() got an unexpected keyword argument 'sparse_output'` | `scikit-learn` anterior a la versión 1.2 | `pip install -U scikit-learn` |
+| Tildes rotas al leer un CSV (`Ã¡`, `Ã©`) | Problema de codificación | `pd.read_csv(ruta, encoding="utf-8")`, o `encoding="latin-1"` si el archivo es antiguo |
+| Números leídos como texto | Separador decimal o de columnas distinto | `pd.read_csv(ruta, sep=";", decimal=",")` |
+| Los gráficos no aparecen | Falta el *backend* interactivo en scripts `.py` | Añade `plt.show()` al final, o trabaja en un cuaderno |
+
+: Problemas frecuentes de instalación y lectura de datos {.striped}
+
+::: {.callout-tip appearance="simple"}
+## Si nada funciona
+
+Lleva el mensaje de error **completo** al foro del aula o al encuentro virtual.
+Un error copiado entero se diagnostica en dos minutos; un «no me funciona» no
+se diagnostica nunca.
+:::

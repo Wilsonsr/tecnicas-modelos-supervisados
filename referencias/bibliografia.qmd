@@ -1,0 +1,124 @@
+---
+title: "Bibliografía"
+subtitle: "Fuentes del curso, verificadas y en su mayoría de acceso abierto"
+description: "Referencias bibliográficas, documentación oficial y recursos complementarios del espacio académico."
+nocite: |
+  @*
+---
+
+## Textos base
+
+::: {.callout-note appearance="simple"}
+## La referencia central del curso
+
+**An Introduction to Statistical Learning** (@james2023, @james2021r) es el texto
+principal. Está disponible **gratuitamente** en
+[statlearning.com](https://www.statlearning.com/), en dos versiones —una con
+ejemplos en Python y otra en R— y con los cuadernos de laboratorio incluidos.
+
+Correspondencia con los cuadernillos:
+
+| Cuadernillo | Capítulo de ISL |
+|---|---|
+| 1 · Fundamentos | 2 — *Statistical Learning* |
+| 2 · Preparación de datos | 3.3 y 6.1 (complementado con @kuhn2019) |
+| 3 · Regresión | 3 — *Linear Regression* · 6 — *Linear Model Selection and Regularization* |
+| 4 · Clasificación | 4 — *Classification* · 8 — *Tree-Based Methods* |
+| 5 · Validación | 5 — *Resampling Methods* |
+
+: Correspondencia con *An Introduction to Statistical Learning* {.striped tbl-colwidths="[40,60]"}
+:::
+
+**The Elements of Statistical Learning** (@hastie2009) es el tratamiento
+matemático completo de los mismos temas. Más exigente; útil como referencia
+cuando ISL se queda corto. También disponible gratuitamente en el
+[sitio de los autores](https://hastie.su.domains/ElemStatLearn/).
+
+**Tidy Modeling with R** (@kuhn2022) es la referencia para la ruta en R.
+Libro abierto en [tmwr.org](https://www.tmwr.org/).
+
+**Feature Engineering and Selection** (@kuhn2019) trata a fondo la preparación de
+datos: codificación de categóricas, faltantes, transformaciones. Abierto en
+[bookdown.org/max/FES](https://bookdown.org/max/FES/).
+
+**Regression Modeling Strategies** (@harrell2015) es la referencia sobre
+estrategias de modelado y los riesgos de la selección de variables guiada por
+los datos.
+
+## Artículos que vale la pena leer completos
+
+Son cortos, están bien escritos y cambian la forma de pensar el problema.
+
+| Referencia | Por qué leerlo | Dónde se usa |
+|---|---|---|
+| @breiman2001 | La distinción entre la cultura del modelado de datos y la del modelado algorítmico. Fundacional. | Cuadernillo 1 |
+| @shmueli2010 | Explicar y predecir son objetivos distintos, con criterios distintos. Clarificador. | Cuadernillo 1 |
+| @kaufman2012 | Fuga de información: cómo se produce y cómo detectarla, con casos reales. | Cuadernillos 2 y 5 |
+| @saito2015 | Por qué la curva PR es preferible a la ROC con clases desbalanceadas. | Cuadernillo 4 |
+| @obermeyer2019 | Cómo una elección de variable objetivo produjo disparidades graves en un algoritmo de salud de uso masivo. | Cuadernillo 5 |
+| @mitchell2019 | *Model cards*: cómo documentar un modelo, sus usos previstos y sus límites. | Cuadernillos 5 y 6 |
+| @mehrabi2021 | Panorama de tipos de sesgo y de medidas de equidad algorítmica. | Cuadernillo 5 |
+
+: Artículos recomendados {.striped tbl-colwidths="[22,52,26]"}
+
+## Artículos fundacionales de los métodos
+
+- @hoerl1970 — introducción de la regresión Ridge.
+- @tibshirani1996 — introducción del Lasso.
+- @breiman2001rf — introducción de Random Forests.
+
+## Documentación oficial
+
+Para consultar durante el trabajo. Es la fuente confiable sobre argumentos,
+valores por defecto y cambios entre versiones.
+
+| Recurso | Enlace |
+|---|---|
+| scikit-learn · User Guide | [scikit-learn.org/stable/user_guide.html](https://scikit-learn.org/stable/user_guide.html) |
+| scikit-learn · Common pitfalls | [scikit-learn.org/stable/common_pitfalls.html](https://scikit-learn.org/stable/common_pitfalls.html) |
+| scikit-learn · Model evaluation | [scikit-learn.org/stable/modules/model_evaluation.html](https://scikit-learn.org/stable/modules/model_evaluation.html) |
+| statsmodels · Regression diagnostics | [statsmodels.org](https://www.statsmodels.org/stable/examples/notebooks/generated/regression_diagnostics.html) |
+| pandas · User Guide | [pandas.pydata.org/docs/user_guide/](https://pandas.pydata.org/docs/user_guide/) |
+| tidymodels | [tidymodels.org](https://www.tidymodels.org/) |
+| Quarto · Guide | [quarto.org/docs/guide/](https://quarto.org/docs/guide/) |
+
+: Documentación oficial {.striped tbl-colwidths="[42,58]"}
+
+## Datos
+
+- @martiniano2012 — artículo asociado al conjunto *Absenteeism at work*,
+  disponible en el
+  [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/445/absenteeism+at+work).
+- Conjunto de inmuebles residenciales en Bogotá: registros de oferta
+  inmobiliaria recopilados con fines docentes, empleados previamente en el curso
+  *Métodos Estadísticos para Analítica de Datos*.
+
+### Fuentes abiertas para el proyecto
+
+| Fuente | Qué ofrece |
+|---|---|
+| [Datos Abiertos Colombia](https://www.datos.gov.co/) | Datos públicos nacionales y territoriales |
+| [DANE · Microdatos](https://microdatos.dane.gov.co/) | Microdatos de encuestas nacionales |
+| [UCI Machine Learning Repository](https://archive.ics.uci.edu/) | Conjuntos clásicos, bien documentados |
+| [OpenML](https://www.openml.org/) | Conjuntos con metadatos y tareas asociadas |
+| [Papers with Code · Datasets](https://paperswithcode.com/datasets) | Conjuntos usados en investigación reciente |
+
+: Fuentes abiertas de datos {.striped tbl-colwidths="[40,60]"}
+
+## Normativa
+
+- **Ley 1581 de 2012** (Colombia) — régimen general de protección de datos
+  personales. Define los datos sensibles, entre ellos los relativos a la salud.
+- **Decreto 1377 de 2013** — reglamenta parcialmente la Ley 1581, incluido el
+  tratamiento de datos sensibles y el deber de informar.
+
+::: {.callout-note appearance="simple"}
+## Sobre la verificación de estas referencias
+
+Todas las referencias de esta página corresponden a publicaciones existentes y
+verificables por su DOI o por el enlace indicado. Se recomienda a los
+estudiantes aplicar el mismo criterio en sus entregas: ver
+[Uso responsable de IA](../recursos/uso-de-ia.qmd).
+:::
+
+## Referencias citadas

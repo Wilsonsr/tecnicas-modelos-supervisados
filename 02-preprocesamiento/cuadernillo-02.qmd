@@ -1,0 +1,887 @@
+---
+title: "Cuadernillo 2 · Antes de modelar: conocer y preparar los datos"
+subtitle: "Encuentro virtual 2 — Exploración, calidad, transformaciones y la trampa del data leakage"
+description: "Análisis exploratorio, tipos de variables, faltantes, atípicos, codificación, escalamiento, fuga de información, partición y pipelines de preprocesamiento."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Encuentro</span><span class="vl">Virtual 2</span></div>
+<div class="ficha-item"><span class="et">Semana</span><span class="vl">2</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">1 · Fundamentos estadísticos</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">120–150 minutos</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span></span></div>
+<div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 1 · Informe exploratorio (20 %)</span></div>
+</div>
+<hr>
+<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (X e y, train/test, sobreajuste), estadística descriptiva y manejo de <code>pandas</code>: <code>groupby</code>, filtros booleanos y <code>value_counts</code>.</div>
+</div>
+```
+
+## La pregunta detonante
+
+> Una entidad financiera necesita estimar el valor comercial de inmuebles
+> residenciales en Bogotá para agilizar su proceso de avalúo. Te entregan una
+> base con **10 000 registros de oferta** y te piden un modelo de precios.
+>
+> Abres el archivo, ves nueve columnas con nombres razonables y 10 000 filas
+> completas. **¿Puedes empezar a modelar?**
+
+La respuesta correcta es no, y la razón no es la prudencia: es que **esta base
+tiene un precio de 870 mil millones de pesos, 951 inmuebles de cero metros
+cuadrados y dos columnas numéricas que Python está leyendo como texto**. Un
+modelo entrenado sobre esto producirá números. Ninguno servirá.
+
+Este cuadernillo trata de lo que pasa entre «tengo los datos» y «puedo
+modelar». En proyectos reales es la mitad del trabajo, y es donde se decide la
+calidad del resultado.
+
+## El caso: avalúo asistido por datos
+
+La entidad quiere una estimación automática del valor comercial que sirva como
+**primer filtro**: si la estimación se aleja demasiado del valor declarado por
+el solicitante, el caso pasa a un avaluador humano.
+
+Esto define desde ya varias cosas:
+
+- La unidad de análisis es **un inmueble en oferta**, no una transacción cerrada.
+- La variable objetivo es el **precio de oferta**, que no es lo mismo que el
+  precio de venta. Es un sesgo conocido que debe declararse.
+- El modelo debe ser **interpretable** hasta cierto punto: un avaluador tiene
+  que poder entender por qué el sistema marcó un caso.
+- Los errores grandes importan más que los pequeños: un error de 5 millones es
+  irrelevante; uno de 500 millones activa un proceso innecesario o deja pasar
+  un fraude.
+
+```{python}
+#| label: setup
+#| code-summary: "Configuración y carga"
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+
+SEMILLA = 42
+np.random.seed(SEMILLA)
+plt.rcParams.update({"figure.figsize": (7, 4.2), "axes.grid": True,
+                     "grid.alpha": 0.25, "axes.spines.top": False,
+                     "axes.spines.right": False, "font.size": 10})
+pd.set_option("display.max_columns", 30)
+
+vivienda = pd.read_csv("../datos/crudos/vivienda_bogota.csv")
+vivienda.head()
+```
+
+## Paso 1 · Conocer la estructura antes que los valores
+
+Lo primero no es graficar: es entender **qué es cada fila y qué es cada
+columna**.
+
+```{python}
+#| label: estructura
+#| code-summary: "Radiografía de la tabla"
+radiografia = pd.DataFrame({
+    "tipo leído": vivienda.dtypes.astype(str),
+    "faltantes": vivienda.isna().sum(),
+    "% faltantes": (vivienda.isna().mean() * 100).round(2),
+    "únicos": vivienda.nunique(),
+    "ejemplo": [vivienda[c].dropna().iloc[0] for c in vivienda.columns],
+})
+radiografia
+```
+
+Tres señales de alarma saltan de inmediato:
+
+```{python}
+#| label: alarmas
+print("1) n_cuartos y n_banos se leyeron como texto.")
+print("   Categorías de n_cuartos:", sorted(vivienda.n_cuartos.dropna().unique()))
+print("   El culpable es la categoría '5+', que no es un número.\n")
+
+print("2) barrio_comun tiene", vivienda.barrio_comun.nunique(), "categorías distintas")
+print("   para 10 000 registros. Revisemos por qué:")
+print(vivienda.barrio_comun.value_counts().head(6).to_string(), "\n")
+
+print("3) Valores extremos en las variables clave:")
+print(f"   area_m2      mínimo: {vivienda.area_m2.min():>12,.0f}   "
+      f"máximo: {vivienda.area_m2.max():>12,.0f}")
+print(f"   valor_venta  mínimo: {vivienda.valor_venta.min():>12,.0f}   "
+      f"máximo: {vivienda.valor_venta.max():>12,.0f}")
+```
+
+::: {.callout-important appearance="simple"}
+## Una columna numérica leída como texto es un error silencioso
+
+Si no lo detectas, `n_cuartos` entrará al modelo como variable categórica con
+seis niveles, o peor, provocará un error a mitad del *pipeline* sin que sea
+evidente por qué. El tipo de dato que `pandas` infiere **no es** el tipo de dato
+que la variable tiene: es el que el archivo permitió inferir.
+:::
+
+### Tipos de variables: lo que importa no es el tipo de Python
+
+| Variable | Tipo leído | Tipo estadístico real | Tratamiento |
+|---|---|---|---|
+| `tipo_inmueble` | texto | Nominal (2 niveles) | Codificación *one-hot* |
+| `valor_venta` | entero | Continua | Variable objetivo |
+| `area_m2` | decimal | Continua | Predictora; revisar ceros |
+| `n_cuartos` | **texto** | Ordinal / discreta | Convertir a numérica |
+| `n_banos` | **texto** | Ordinal / discreta | Convertir a numérica |
+| `n_garajes` | decimal | Discreta | Imputar faltantes |
+| `zona` | texto | Nominal (8 niveles) | *One-hot* + categoría para faltantes |
+| `barrio` | texto | Nominal (363 niveles) | Alta cardinalidad: agrupar o descartar |
+| `barrio_comun` | texto | Nominal (790 niveles) | Normalizar antes de decidir |
+
+: Tipo leído frente a tipo estadístico {.striped tbl-colwidths="[16,14,26,44]"}
+
+```{=html}
+<div class="micro piensa"><div class="micro-cab"><span class="tipo">Piensa</span><span class="titulo">¿Cuántas columnas tendrá tu matriz?</span><span class="tiempo">5 min</span></div>
+<p>Si aplicaras codificación <i>one-hot</i> a <code>tipo_inmueble</code>, <code>zona</code>, <code>barrio</code> y <code>barrio_comun</code> tal como están, ¿cuántas columnas tendría la matriz de diseño X? Haz la cuenta antes de ejecutar nada.</p>
+<p>Compara ese número con las 10 000 filas disponibles. ¿Qué problema anticipas? Ese problema tiene un nombre y aparece en el Cuadernillo 3.</p></div>
+```
+
+## Paso 2 · Corregir lo que está mal escrito
+
+Empezamos por los problemas que no requieren juicio: errores de formato.
+
+```{python}
+#| label: limpieza-formato
+#| code-summary: "Conversión de tipos y normalización de texto"
+datos = vivienda.copy()
+
+# 2.1 — Convertir a numéricas. '5+' se interpreta como 5 (se documenta la decisión)
+for col in ["n_cuartos", "n_banos"]:
+    datos[col] = pd.to_numeric(datos[col].replace("5+", "5"), errors="coerce")
+
+# 2.2 — Normalizar texto: mayúsculas y espacios sobrantes
+for col in ["zona", "barrio", "barrio_comun"]:
+    datos[col] = datos[col].str.strip().str.upper()
+
+print(f"barrio_comun: {vivienda.barrio_comun.nunique()} categorías → "
+      f"{datos.barrio_comun.nunique()} tras normalizar "
+      f"({vivienda.barrio_comun.nunique() - datos.barrio_comun.nunique()} eran "
+      f"la misma escrita distinto)")
+print(f"n_cuartos ahora es de tipo {datos.n_cuartos.dtype}")
+```
+
+::: {.callout-warning appearance="simple"}
+## `'5+' → 5` es una decisión, no una limpieza
+
+Convertir `"5+"` en `5` subestima los inmuebles con seis o más habitaciones. Es
+una decisión defendible —son solo 6 registros— pero **debe quedar escrita en el
+informe**. La alternativa sería tratar la variable como categórica ordinal y
+conservar `"5+"` como nivel propio.
+
+Regla general del curso: toda transformación que pierda información se
+documenta con su justificación. En la Actividad 1, esto se evalúa.
+:::
+
+## Paso 3 · Distinguir el valor atípico del error
+
+Aquí sí hace falta juicio, y conocimiento del dominio.
+
+```{python}
+#| label: fig-distribucion-cruda
+#| fig-cap: "Distribución del precio y del área antes de cualquier depuración. La escala del eje x lo dice todo."
+fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.6))
+
+axes[0].hist(datos.valor_venta / 1e6, bins=80, color="#17808C", edgecolor="white")
+axes[0].set_xlabel("Valor de venta (millones COP)")
+axes[0].set_ylabel("Inmuebles")
+axes[0].set_title("Precio: todo colapsa en la izquierda", fontsize=10)
+
+axes[1].hist(datos.area_m2, bins=80, color="#B4543A", edgecolor="white")
+axes[1].set_xlabel("Área (m²)")
+axes[1].set_title("Área: una barra enorme en cero", fontsize=10)
+
+plt.tight_layout()
+plt.show()
+```
+
+Los histogramas no se ven mal por casualidad: se ven así porque hay valores
+que **no pueden existir**.
+
+```{python}
+#| label: implausibles
+#| code-summary: "Cuantificar lo imposible"
+diagnostico = pd.DataFrame([
+    {"Problema": "Área igual a 0 m²",
+     "Registros": int((datos.area_m2 == 0).sum()),
+     "Veredicto": "Error de captura: un inmueble no tiene cero área"},
+    {"Problema": "Área menor a 25 m²",
+     "Registros": int((datos.area_m2.between(0.1, 25)).sum()),
+     "Veredicto": "Sospechoso: por debajo del mínimo habitacional en Bogotá"},
+    {"Problema": "Precio menor a $80 millones",
+     "Registros": int((datos.valor_venta < 80e6).sum()),
+     "Veredicto": "Error o unidad equivocada (¿millones vs. pesos?)"},
+    {"Problema": "Precio mayor a $6 000 millones",
+     "Registros": int((datos.valor_venta > 6e9).sum()),
+     "Veredicto": "Mezcla de errores y de inmuebles de lujo reales"},
+    {"Problema": "n_banos igual a 0",
+     "Registros": int((datos.n_banos == 0).sum()),
+     "Veredicto": "Error: una vivienda residencial tiene al menos un baño"},
+])
+diagnostico
+```
+
+### La variable derivada que ordena el diagnóstico
+
+Ni el precio ni el área, por separado, distinguen bien el error del caso
+extremo legítimo. Su **cociente**, sí:
+
+```{python}
+#| label: precio-m2
+#| code-summary: "Precio por metro cuadrado como criterio de plausibilidad"
+datos.loc[datos.area_m2 == 0, "area_m2"] = np.nan   # 0 m² es faltante, no cero
+datos["precio_m2"] = datos.valor_venta / datos.area_m2
+
+resumen_m2 = datos.precio_m2.describe(percentiles=[.01, .05, .25, .5, .75, .95, .99])
+pd.DataFrame({"precio por m² (COP)": resumen_m2.round(0)})
+```
+
+El precio por metro cuadrado mediano en Bogotá ronda los 5,4 millones de pesos,
+lo cual es plausible. Pero el máximo supera los **8 000 millones por metro
+cuadrado**. Eso no es un inmueble caro: es un dato roto.
+
+```{python}
+#| label: regla-negocio
+#| code-summary: "Una regla de plausibilidad explícita y justificada"
+plausible = (
+    datos.precio_m2.between(1.5e6, 20e6) &     # rango de mercado en Bogotá
+    datos.area_m2.between(25, 500) &           # vivienda residencial
+    datos.valor_venta.between(80e6, 6e9) &     # precios de oferta razonables
+    (datos.n_banos >= 1)                       # al menos un baño
+)
+
+limpio = datos[plausible].copy()
+
+print(f"Registros conservados: {len(limpio):,} de {len(datos):,} "
+      f"({len(limpio)/len(datos):.1%})")
+print(f"Registros descartados: {len(datos) - len(limpio):,} "
+      f"({1 - len(limpio)/len(datos):.1%})")
+```
+
+::: {.callout-important}
+## Por qué una regla de negocio y no el criterio del rango intercuartílico
+
+La regla automática más difundida marca como atípico todo lo que esté fuera de
+$[Q_1 - 1{,}5\,\text{RIC},\; Q_3 + 1{,}5\,\text{RIC}]$. Aplicada aquí, eliminaría
+cientos de apartamentos **perfectamente reales** del norte de Bogotá, solo por
+ser caros.
+
+```{python}
+#| label: iqr-comparacion
+#| echo: false
+q1, q3 = limpio.valor_venta.quantile([.25, .75])
+ric = q3 - q1
+fuera = ((limpio.valor_venta < q1 - 1.5*ric) | (limpio.valor_venta > q3 + 1.5*ric)).sum()
+print(f"Sobre los datos ya depurados, el criterio del RIC eliminaría "
+      f"{fuera} inmuebles adicionales ({fuera/len(limpio):.1%}),")
+print(f"todos con precio superior a ${(q3 + 1.5*ric)/1e6:,.0f} millones.")
+print("Ninguno de ellos es un error: son inmuebles de estrato alto.")
+```
+
+**Un valor atípico no es un error.** Un error es un valor imposible. Un atípico
+es un valor raro pero real, y a veces es justamente el caso que más importa
+predecir bien. Eliminar atípicos por regla automática es una de las formas más
+comunes de degradar un modelo sin darse cuenta.
+:::
+
+```{=html}
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta el problema</span><span class="titulo">Tres decisiones de limpieza</span><span class="tiempo">10 min</span></div>
+<p>Un analista escribe en su informe:</p>
+<blockquote><p>«Eliminé los valores atípicos aplicando el criterio de ±3 desviaciones estándar sobre <code>valor_venta</code>, imputé los faltantes de <code>area_m2</code> con la media general y descarté <code>barrio</code> porque tenía demasiadas categorías.»</p></blockquote>
+<p>Las tres decisiones tienen un problema distinto. Identifícalos:</p>
+<ol>
+<li>¿Por qué ±3 desviaciones estándar es mala idea <i>en esta variable concreta</i>? (Pista: mira la asimetría del precio).</li>
+<li>¿Qué le pasa a un inmueble de 300 m² al que le imputas el área media?</li>
+<li>Descartar <code>barrio</code> puede ser correcto, pero la razón dada es mala. ¿Cuál sería una razón válida y qué alternativa existe?</li>
+</ol></div>
+```
+
+## Paso 4 · Valores faltantes: primero el porqué, después el cómo
+
+```{python}
+#| label: faltantes
+#| code-summary: "Faltantes tras la depuración"
+faltantes = pd.DataFrame({
+    "faltantes": limpio.isna().sum(),
+    "%": (limpio.isna().mean() * 100).round(2),
+}).query("faltantes > 0").sort_values("faltantes", ascending=False)
+faltantes
+```
+
+Antes de imputar hay que preguntarse **por qué falta**. El mecanismo cambia la
+estrategia válida:
+
+| Mecanismo | Qué significa | Ejemplo en estos datos | Consecuencia |
+|---|---|---|---|
+| **MCAR** — completamente al azar | La ausencia no depende de nada | Un registro que se perdió por un fallo técnico | Imputar o eliminar: ambos son válidos |
+| **MAR** — al azar condicional | La ausencia depende de otras variables observadas | `n_garajes` falta más en apartamentos pequeños | Imputar **usando** esas otras variables |
+| **MNAR** — no al azar | La ausencia depende del valor que falta | El área no se reporta justamente cuando es muy pequeña | Imputar sesga; hay que modelar la ausencia |
+
+: Mecanismos de datos faltantes {.striped tbl-colwidths="[18,26,32,24]"}
+
+```{python}
+#| label: mecanismo
+#| code-summary: "¿Los faltantes de zona son aleatorios?"
+comparacion = pd.DataFrame({
+    "Precio mediano (millones)": [
+        limpio.loc[limpio.zona.isna(), "valor_venta"].median() / 1e6,
+        limpio.loc[limpio.zona.notna(), "valor_venta"].median() / 1e6],
+    "Área mediana (m²)": [
+        limpio.loc[limpio.zona.isna(), "area_m2"].median(),
+        limpio.loc[limpio.zona.notna(), "area_m2"].median()],
+    "n": [limpio.zona.isna().sum(), limpio.zona.notna().sum()],
+}, index=["Sin zona registrada", "Con zona registrada"])
+comparacion.round(1)
+```
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">El faltante como información</span><span class="tiempo">10 min</span></div>
+<p>Mira la tabla anterior. Si los inmuebles sin zona registrada tuvieran un perfil claramente distinto de los demás, ¿qué mecanismo sugeriría y qué estrategia de imputación quedaría descartada?</p>
+<p>Y una pregunta que casi nadie se hace: <b>¿el hecho de que falte podría ser útil para predecir?</b> Si un inmueble sin zona registrada tiende a ser sistemáticamente distinto, crear una categoría explícita <code>"SIN DATO"</code> conserva esa información, mientras que imputar con la moda la destruye.</p></div>
+```
+
+::: {.callout-note appearance="simple"}
+## La imputación se define ahora, pero se ejecuta después
+
+Vamos a decidir *qué* imputación aplicar, pero **no la vamos a ejecutar sobre
+todos los datos**. Se incorporará al *pipeline*, para que se ajuste solo con los
+datos de entrenamiento. La razón está en la sección de fuga de información.
+:::
+
+## Paso 5 · Exploración: mirar antes de modelar
+
+### Univariado: la forma de la variable objetivo
+
+```{python}
+#| label: fig-log
+#| fig-cap: "El precio en escala original y en escala logarítmica. La transformación no cambia los datos: cambia la escala en la que el modelo los ve."
+fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.6))
+
+axes[0].hist(limpio.valor_venta / 1e6, bins=60, color="#17808C", edgecolor="white")
+axes[0].set_xlabel("Valor de venta (millones COP)")
+axes[0].set_ylabel("Inmuebles")
+axes[0].set_title(f"Escala original · asimetría = {limpio.valor_venta.skew():.2f}",
+                  fontsize=10)
+
+axes[1].hist(np.log(limpio.valor_venta), bins=60, color="#2E6B4F", edgecolor="white")
+axes[1].set_xlabel("log(valor de venta)")
+axes[1].set_title(f"Escala logarítmica · asimetría = {np.log(limpio.valor_venta).skew():.2f}",
+                  fontsize=10)
+
+plt.tight_layout()
+plt.show()
+```
+
+La asimetría pasa de `{python} f"{limpio.valor_venta.skew():.2f}".replace(".", ",")`
+a `{python} f"{np.log(limpio.valor_venta).skew():.2f}".replace(".", ",")`.
+
+::: {.callout-tip collapse="true"}
+## Qué implica modelar el logaritmo del precio
+
+Trabajar con $\log(y)$ tiene tres consecuencias que hay que conocer:
+
+1.  **La interpretación cambia.** Un coeficiente $\beta$ ya no significa «cada
+    m² adicional suma $\beta$ pesos», sino «cada m² adicional multiplica el
+    precio por $e^{\beta}$», es decir, un cambio **porcentual**.
+2.  **Los errores se vuelven relativos.** Equivocarse por 50 millones en un
+    inmueble de 200 millones pesa más que en uno de 2 000 millones. Para un
+    avalúo, eso suele ser lo correcto.
+3.  **Las métricas no son comparables.** Un RMSE calculado sobre $\log(y)$ no
+    se puede comparar con uno calculado sobre $y$. Para reportar en pesos hay
+    que devolver la predicción con $e^{\hat{y}}$, y ese paso introduce un sesgo
+    conocido que debe corregirse.
+
+En el [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd) modelamos en la escala
+original para no arrastrar esa complicación, y se muestra explícitamente lo que
+cuesta esa decisión.
+:::
+
+### Bivariado: qué se relaciona con qué
+
+```{python}
+#| label: fig-dispersion
+#| fig-cap: "Relación entre área y precio, por tipo de inmueble. Pasa el cursor para ver zona y barrio de cada punto."
+muestra = limpio.sample(2500, random_state=SEMILLA)
+
+fig = px.scatter(
+    muestra, x="area_m2", y=muestra.valor_venta / 1e6,
+    color="tipo_inmueble", opacity=0.55,
+    hover_data={"zona": True, "barrio_comun": True,
+                "n_cuartos": True, "n_banos": True},
+    labels={"area_m2": "Área (m²)", "y": "Valor de venta (millones COP)"},
+    template="simple_white",
+    color_discrete_map={"Apartamento": "#17808C", "Casa": "#B4543A"})
+fig.update_layout(height=430, legend_title_text="",
+                  yaxis_title="Valor de venta (millones COP)",
+                  margin=dict(t=30, b=40))
+fig
+```
+
+```{python}
+#| label: correlaciones
+#| code-summary: "Matriz de correlación de las numéricas"
+numericas = ["valor_venta", "area_m2", "n_cuartos", "n_banos",
+             "n_garajes", "precio_m2"]
+corr = limpio[numericas].corr().round(2)
+corr.style.background_gradient(cmap="RdBu_r", vmin=-1, vmax=1) \
+          .format("{:.2f}") \
+          .set_caption("Correlación de Pearson")
+```
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">Una correlación que parece un error</span><span class="tiempo">10 min</span></div>
+<p>En la matriz, <code>n_cuartos</code> tiene correlación <b>positiva</b> con <code>valor_venta</code> pero <b>negativa</b> con <code>precio_m2</code>.</p>
+<p>Es decir: más habitaciones se asocia con un inmueble más caro, pero también con un metro cuadrado más barato.</p>
+<ol>
+<li>¿Es una contradicción? Explica el mecanismo que produce ese patrón.</li>
+<li>¿Qué te dice sobre el tipo de inmuebles que tienen muchas habitaciones?</li>
+<li>Si un modelo usa <code>n_cuartos</code> para predecir el precio, ¿qué riesgo de interpretación aparece?</li>
+</ol>
+<p>Esta pregunta no se resuelve consultando una IA: requiere razonar sobre el mercado inmobiliario bogotano concreto que estos datos describen.</p></div>
+```
+
+### El contexto: dónde está el inmueble
+
+```{python}
+#| label: fig-zona
+#| fig-cap: "Precio por metro cuadrado según la zona de la ciudad. La ubicación explica una parte sustancial del precio."
+orden = (limpio.groupby("zona", observed=True).precio_m2.median()
+         .sort_values(ascending=False).index.tolist())
+
+fig, ax = plt.subplots(figsize=(8.5, 4))
+datos_box = [limpio.loc[limpio.zona == z, "precio_m2"] / 1e6 for z in orden]
+bp = ax.boxplot(datos_box, labels=orden, patch_artist=True, showfliers=False,
+                medianprops=dict(color="#12304F", linewidth=1.6))
+for caja in bp["boxes"]:
+    caja.set(facecolor="#D7E8EA", edgecolor="#17808C")
+ax.set_ylabel("Precio por m² (millones COP)")
+ax.set_xlabel("")
+plt.xticks(rotation=30, ha="right")
+plt.tight_layout()
+plt.show()
+```
+
+## Paso 6 · Data leakage: el error que produce modelos perfectos e inservibles
+
+Este es el concepto más importante del cuadernillo. **Fuga de información**
+(*data leakage*) ocurre cuando el modelo tiene acceso, durante el
+entrenamiento, a información que no estaría disponible en el momento real de
+predecir [@kaufman2012].
+
+El síntoma es siempre el mismo: **un desempeño sospechosamente bueno**.
+
+### Fuga tipo 1 · Una variable construida a partir de la respuesta
+
+```{python}
+#| label: fuga-1
+#| code-summary: "Incluir precio_m2 como predictor del precio"
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+
+modelo_datos = limpio.dropna(subset=["n_cuartos", "n_garajes", "area_m2"]).copy()
+
+y_v = modelo_datos.valor_venta
+predictoras_ok   = ["area_m2", "n_cuartos", "n_banos", "n_garajes"]
+predictoras_fuga = predictoras_ok + ["precio_m2"]
+
+resultados = {}
+for nombre, cols in [("Sin fuga", predictoras_ok), ("Con fuga", predictoras_fuga)]:
+    Xa, Xb, ya, yb = train_test_split(modelo_datos[cols], y_v,
+                                      test_size=0.3, random_state=SEMILLA)
+    modelo = LinearRegression().fit(Xa, ya)
+    resultados[nombre] = r2_score(yb, modelo.predict(Xb))
+
+pd.DataFrame({
+    "Predictoras": ["área, cuartos, baños, garajes",
+                    "las mismas + precio por m²"],
+    "R² en prueba": [f"{resultados['Sin fuga']:.3f}",
+                     f"{resultados['Con fuga']:.3f}"],
+    "¿Es utilizable?": ["Sí", "No: precio_m2 = valor_venta ÷ area_m2"],
+}, index=["Modelo correcto", "Modelo con fuga"])
+```
+
+El R² sube de `{python} f"{resultados['Sin fuga']:.3f}".replace(".", ",")` a
+`{python} f"{resultados['Con fuga']:.3f}".replace(".", ",")`. Parece una mejora
+enorme. Es un fraude aritmético: `precio_m2` se calculó dividiendo la respuesta
+por el área, así que el modelo está leyendo la respuesta con un disfraz.
+
+::: {.callout-warning appearance="simple"}
+## Cómo se detecta esta fuga en la práctica
+
+Pregúntate, **variable por variable**: *«en el momento en que necesito hacer la
+predicción, ¿ya conozco este valor?»*
+
+Para un inmueble que llega a avalúo, el precio por m² **no se conoce**: es
+justamente lo que se quiere estimar. La variable derivada fue útil para la
+depuración, pero no puede entrar al modelo.
+:::
+
+### Fuga tipo 2 · Usar todos los datos para tomar una decisión de modelado
+
+Esta es más sutil y mucho más común. La ilustramos con **datos completamente
+aleatorios**, donde por construcción no hay ninguna relación que descubrir:
+
+```{python}
+#| label: fuga-2
+#| code-summary: "Selección de variables antes y dentro de la validación"
+from sklearn.model_selection import cross_val_score, KFold
+from sklearn.feature_selection import SelectKBest, f_regression
+from sklearn.pipeline import make_pipeline
+
+rng = np.random.default_rng(SEMILLA)
+n, p = 120, 400
+X_ruido = rng.normal(size=(n, p))     # 400 variables sin ninguna señal
+y_ruido = rng.normal(size=n)          # respuesta independiente de todas ellas
+
+cv = KFold(5, shuffle=True, random_state=SEMILLA)
+
+# --- Procedimiento INCORRECTO: seleccionar mirando todos los datos ---
+correlaciones = np.array([abs(np.corrcoef(X_ruido[:, j], y_ruido)[0, 1])
+                          for j in range(p)])
+mejores = np.argsort(correlaciones)[-15:]
+r2_mal = cross_val_score(LinearRegression(), X_ruido[:, mejores], y_ruido,
+                         cv=cv, scoring="r2").mean()
+
+# --- Procedimiento CORRECTO: la selección ocurre dentro de cada pliegue ---
+flujo = make_pipeline(SelectKBest(f_regression, k=15), LinearRegression())
+r2_bien = cross_val_score(flujo, X_ruido, y_ruido, cv=cv, scoring="r2").mean()
+
+pd.DataFrame({
+    "Procedimiento": ["Seleccionar variables con todos los datos, luego validar",
+                      "Seleccionar dentro del pipeline, en cada pliegue"],
+    "R² promedio en validación cruzada": [f"{r2_mal:.3f}", f"{r2_bien:.3f}"],
+    "Verdad conocida": ["No hay señal alguna", "No hay señal alguna"],
+})
+```
+
+::: {.callout-important}
+## Un R² de `{python} f"{r2_mal:.2f}".replace(".", ",")` sobre ruido puro
+
+Los datos son números aleatorios. **No existe ninguna relación real.** El
+procedimiento correcto lo detecta y devuelve un R² negativo —peor que predecir
+la media, que es exactamente lo que corresponde—. El procedimiento incorrecto
+reporta un R² positivo y respetable.
+
+La diferencia entre ambos no es el modelo: es *cuándo* se miraron los datos. Al
+elegir las 15 variables más correlacionadas usando el conjunto completo, esa
+elección ya incorporó información del conjunto de validación.
+
+**Toda decisión que mire a `y` —imputar, escalar, seleccionar variables,
+codificar categorías con la media del objetivo— debe ocurrir dentro del
+`Pipeline`.**
+:::
+
+```{=html}
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta el problema</span><span class="titulo">Cuatro fragmentos, ¿cuáles tienen fuga?</span><span class="tiempo">15 min</span></div>
+<p>Para cada fragmento, decide si hay fuga de información y explica por qué. Al menos uno no la tiene.</p>
+<p><b>A.</b> <code>X = StandardScaler().fit_transform(X)</code> seguido de <code>train_test_split(X, y)</code>.</p>
+<p><b>B.</b> Rellenar los faltantes de <code>area_m2</code> con la mediana calculada sobre las 10 000 filas, y después partir.</p>
+<p><b>C.</b> Eliminar los registros con área igual a cero antes de partir, porque son errores de captura.</p>
+<p><b>D.</b> Codificar <code>barrio</code> reemplazando cada barrio por el precio promedio de los inmuebles de ese barrio, usando toda la base.</p>
+<p>Para los que sí tienen fuga: ¿en qué dirección se distorsiona el desempeño estimado, y cuál es la corrección?</p></div>
+```
+
+## Paso 7 · Partición, codificación y escalamiento, en el orden correcto
+
+### Primero se parte
+
+```{python}
+#| label: particion
+#| code-summary: "La partición ocurre antes de cualquier ajuste"
+predictoras = ["area_m2", "n_cuartos", "n_banos", "n_garajes",
+               "tipo_inmueble", "zona"]
+
+X = limpio[predictoras].copy()
+X["zona"] = X["zona"].fillna("SIN DATO")   # el faltante como categoría propia
+y = limpio["valor_venta"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, random_state=SEMILLA)
+
+print(f"Entrenamiento: {len(X_train):,} inmuebles")
+print(f"Prueba:        {len(X_test):,} inmuebles")
+print(f"\nA partir de aquí, X_test no se toca hasta el final.")
+```
+
+### Después se define el preprocesamiento
+
+| Técnica | Cuándo se usa | Qué hace | Riesgo si se omite |
+|---|---|---|---|
+| **Imputación** | Hay faltantes | Rellena con un estadístico ajustado en entrenamiento | Muchos modelos fallan o descartan filas |
+| **One-hot** | Categóricas nominales | Una columna binaria por nivel | El modelo trata las categorías como números ordenados |
+| **Ordinal** | Categóricas con orden real | Un entero que respeta el orden | Se pierde el orden, o se inventa uno |
+| **Estandarización** | Modelos sensibles a la escala | Media 0, desviación 1 | Ridge, Lasso, k-NN y SVM quedan dominados por la variable de mayor escala |
+
+: Técnicas de preprocesamiento y su justificación {.striped tbl-colwidths="[18,24,32,26]"}
+
+::: {.callout-note appearance="simple"}
+## ¿Qué modelos necesitan estandarización?
+
+**Sí la necesitan:** los que miden distancias (k-NN, SVM, k-means) y los que
+penalizan el tamaño de los coeficientes (Ridge, Lasso, Elastic Net). En estos,
+una variable medida en pesos aplastaría a una medida en número de baños.
+
+**No la necesitan:** los basados en árboles (árbol de decisión, Random Forest,
+gradient boosting), porque solo usan el *orden* de los valores para decidir
+los cortes. Estandarizarlos no daña, pero no aporta.
+
+La regresión lineal sin penalización tampoco la necesita para predecir; sí
+ayuda a comparar magnitudes de coeficientes entre variables.
+:::
+
+### El pipeline: la garantía estructural contra la fuga
+
+```{python}
+#| label: pipeline
+#| code-summary: "Un solo objeto que encapsula todo el preprocesamiento"
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+
+cols_num = ["area_m2", "n_cuartos", "n_banos", "n_garajes"]
+cols_cat = ["tipo_inmueble", "zona"]
+
+rama_numerica = Pipeline([
+    ("imputar", SimpleImputer(strategy="median")),
+    ("escalar", StandardScaler()),
+])
+
+rama_categorica = Pipeline([
+    ("imputar", SimpleImputer(strategy="most_frequent")),
+    ("codificar", OneHotEncoder(handle_unknown="ignore", drop="first",
+                                sparse_output=False)),
+])
+
+preprocesador = ColumnTransformer([
+    ("num", rama_numerica, cols_num),
+    ("cat", rama_categorica, cols_cat),
+])
+
+flujo_completo = Pipeline([
+    ("preprocesamiento", preprocesador),
+    ("modelo", LinearRegression()),
+])
+
+flujo_completo
+```
+
+```{python}
+#| label: pipeline-fit
+#| code-summary: "Ajustar y evaluar: una sola llamada, sin posibilidad de fuga"
+from sklearn.metrics import root_mean_squared_error, mean_absolute_error
+
+flujo_completo.fit(X_train, y_train)          # ajusta imputador, escalador y modelo
+pred = flujo_completo.predict(X_test)         # aplica exactamente lo aprendido
+
+nombres = flujo_completo.named_steps["preprocesamiento"].get_feature_names_out()
+
+print(f"Columnas originales: {X_train.shape[1]}")
+print(f"Columnas tras el preprocesamiento: {len(nombres)}")
+print(f"\nRMSE en prueba: ${root_mean_squared_error(y_test, pred)/1e6:,.1f} millones")
+print(f"MAE  en prueba: ${mean_absolute_error(y_test, pred)/1e6:,.1f} millones")
+print(f"R²   en prueba: {r2_score(y_test, pred):.3f}")
+```
+
+::: {.callout-tip}
+## Tres razones por las que el `Pipeline` no es opcional
+
+1.  **Impide la fuga por construcción.** `SimpleImputer` calcula la mediana
+    solo con `X_train`. `StandardScaler` calcula media y desviación solo con
+    `X_train`. Es estructuralmente imposible que miren el conjunto de prueba.
+2.  **Hace la validación cruzada honesta.** En cada pliegue, el preprocesamiento
+    se reajusta con los datos de ese pliegue. Sin *pipeline*, esto es casi
+    imposible de hacer bien a mano.
+3.  **Es un objeto único y desplegable.** El mismo objeto que evaluaste es el
+    que se lleva a producción. No hay pasos sueltos que alguien pueda olvidar.
+
+`handle_unknown="ignore"` merece mención aparte: si en producción aparece una
+zona que no estaba en entrenamiento, el modelo la codifica como ceros en lugar
+de fallar. Sin ese argumento, el sistema se cae con el primer caso nuevo.
+:::
+
+```{=html}
+<div class="micro prueba"><div class="micro-cab"><span class="tipo">Prueba</span><span class="titulo">Romper el pipeline a propósito</span><span class="tiempo">10 min</span></div>
+<p>Modifica el flujo de dos maneras y reporta el RMSE en prueba de cada una:</p>
+<ol>
+<li>Cambia <code>strategy="median"</code> por <code>strategy="mean"</code> en la imputación numérica. ¿Cambió algo? ¿Por qué tan poco (o tanto)?</li>
+<li>Elimina el paso <code>("escalar", StandardScaler())</code>. ¿Cambió el RMSE de la regresión lineal? Explica el resultado: no es un error, es una propiedad del modelo.</li>
+</ol>
+<p>La segunda pregunta tiene una respuesta que sorprende a mucha gente. Anótala: en el Cuadernillo 3 vas a repetir el mismo experimento con Ridge y el resultado será distinto.</p></div>
+```
+
+## Paso 8 · Guardar el conjunto depurado
+
+```{python}
+#| label: guardar
+#| code-summary: "Dataset listo para los cuadernillos 3 y 5"
+from pathlib import Path
+
+salida = limpio[predictoras + ["valor_venta", "barrio_comun"]].copy()
+salida["zona"] = salida["zona"].fillna("SIN DATO")
+
+Path("../datos/procesados").mkdir(parents=True, exist_ok=True)
+salida.to_csv("../datos/procesados/vivienda_modelado.csv", index=False)
+
+print(f"Guardado: datos/procesados/vivienda_modelado.csv")
+print(f"  {len(salida):,} registros × {salida.shape[1]} columnas")
+print(f"  Partiendo de {len(vivienda):,} registros originales "
+      f"({len(salida)/len(vivienda):.1%} conservado)")
+```
+
+::: {.callout-warning appearance="simple"}
+## Lo que este archivo **no** contiene
+
+No contiene imputaciones ni estandarizaciones: esas viven en el *pipeline* y se
+aplican dentro de cada partición. Solo contiene las correcciones que son
+válidas sobre todos los datos por igual: conversiones de tipo, normalización de
+texto y eliminación de registros imposibles.
+
+La distinción es precisa: **corregir un error de captura** no usa información de
+`y` y puede hacerse antes de partir. **Estimar un valor para reemplazar un
+faltante** sí usa la distribución de los datos y debe hacerse dentro del
+*pipeline*.
+:::
+
+## El mismo flujo, en R
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+preprocesador = ColumnTransformer([
+    ("num", Pipeline([("imputar", SimpleImputer(strategy="median")),
+                      ("escalar", StandardScaler())]), cols_num),
+    ("cat", Pipeline([("imputar", SimpleImputer(strategy="most_frequent")),
+                      ("codificar", OneHotEncoder(handle_unknown="ignore",
+                                                  drop="first"))]), cols_cat),
+])
+
+flujo = Pipeline([("prep", preprocesador), ("modelo", LinearRegression())])
+flujo.fit(X_train, y_train)
+```
+
+### R (tidymodels)
+
+```{.r}
+library(tidymodels)
+
+receta <- recipe(valor_venta ~ ., data = entrenamiento) |>
+  step_impute_median(all_numeric_predictors()) |>
+  step_impute_mode(all_nominal_predictors()) |>
+  step_novel(all_nominal_predictors()) |>        # equivale a handle_unknown
+  step_dummy(all_nominal_predictors()) |>
+  step_normalize(all_numeric_predictors()) |>
+  step_zv(all_predictors())                      # elimina varianza cero
+
+modelo <- linear_reg() |> set_engine("lm")
+
+flujo <- workflow() |>
+  add_recipe(receta) |>
+  add_model(modelo) |>
+  fit(data = entrenamiento)
+```
+
+:::
+
+El paralelo conceptual es exacto: `recipe` ↔ `ColumnTransformer`,
+`workflow` ↔ `Pipeline`, y `prep`/`bake` ↔ `fit`/`transform`. En ambos casos,
+el preprocesamiento se **define** una vez y se **ajusta** dentro de cada
+partición.
+
+```{=html}
+<div class="micro discute"><div class="micro-cab"><span class="tipo">Discute</span><span class="titulo">Para el encuentro virtual</span><span class="tiempo">15 min</span></div>
+<p>Depuramos el 14 % de los registros con una regla de plausibilidad. Un compañero objeta: «al eliminar los inmuebles de más de 6 000 millones, el modelo nunca va a poder avaluar una propiedad de lujo; le quitaste justo los casos difíciles».</p>
+<p>Tiene parte de razón. Prepara una posición argumentada sobre:</p>
+<ol>
+<li>¿Cuál es el <b>dominio de validez</b> del modelo que estamos construyendo, y dónde debe declararse?</li>
+<li>¿Qué debería ocurrir, en el sistema de avalúo, cuando llega un inmueble fuera de ese dominio?</li>
+<li>¿Habría sido mejor construir dos modelos separados? ¿Qué costo tendría esa decisión?</li>
+</ol></div>
+```
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>El tipo que <code>pandas</code> infiere no es el tipo estadístico de la variable. Revisa siempre ambos.</li>
+<li>Un <b>error</b> es un valor imposible; un <b>atípico</b> es un valor raro pero real. Se tratan distinto.</li>
+<li>Las reglas automáticas de atípicos (RIC, ±3σ) eliminan casos legítimos en distribuciones asimétricas.</li>
+<li>Antes de imputar, pregunta <b>por qué falta</b>. El mecanismo (MCAR, MAR, MNAR) decide qué estrategia es válida.</li>
+<li>Una categoría <code>"SIN DATO"</code> conserva información que la imputación por moda destruye.</li>
+<li><b>Fuga de información</b> = el modelo ve algo que no tendría al predecir. El síntoma es un desempeño demasiado bueno.</li>
+<li>Toda decisión que mire a <code>y</code> —imputar, escalar, seleccionar, codificar— va <b>dentro</b> del <code>Pipeline</code>.</li>
+<li>Corregir errores de captura puede hacerse antes de partir. Estimar valores, no.</li>
+<li>Los modelos de distancia y los penalizados necesitan estandarización; los de árboles, no.</li>
+</ul>
+</div>
+```
+
+## Errores frecuentes en este tema
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Estandarizar antes de partir | Fuga: el escalador vio el conjunto de prueba | `StandardScaler` dentro del `Pipeline` |
+| Imputar con la media global antes de partir | Fuga, y además destruye la relación con otras variables | `SimpleImputer` dentro del `Pipeline` |
+| Eliminar atípicos con el criterio del RIC sin mirar la distribución | Se pierden casos reales e importantes | Regla de plausibilidad justificada por el dominio |
+| Codificar categorías con el promedio del objetivo usando todos los datos | Fuga severa; el modelo parece excelente y falla en producción | *Target encoding* con validación cruzada interna, o evitarlo |
+| Aplicar *one-hot* a una variable con 700 niveles | Matriz enorme, modelo inestable, sobreajuste | Agrupar niveles raros, o usar una variable de contexto más gruesa |
+| Convertir `"5+"` en 5 sin documentarlo | El informe no es reproducible ni auditable | Registrar toda transformación con pérdida de información |
+| No usar `handle_unknown="ignore"` | El sistema falla con la primera categoría nueva en producción | Declararlo siempre en `OneHotEncoder` |
+| Tratar una variable ordinal como nominal | Se pierde el orden, se gastan grados de libertad | `OrdinalEncoder` con las categorías en orden explícito |
+
+: Errores frecuentes del Cuadernillo 2 {.striped tbl-colwidths="[32,36,32]"}
+
+## Conexión con la Actividad 1
+
+::: {.callout-note}
+## Actividad institucional 1 · Estadística descriptiva y limpieza de datos (20 %, semanas 2 y 3)
+
+El producto es un **informe exploratorio**. Lo trabajado en este cuadernillo es
+exactamente lo que ese informe necesita:
+
+- Caracterización de la estructura de los datos y de los tipos de variables.
+- Diagnóstico de calidad: faltantes, errores, valores implausibles.
+- Justificación **documentada** de cada decisión de limpieza.
+- Exploración univariada y bivariada, con gráficos que respondan a una pregunta.
+- Identificación de riesgos de fuga de información antes de modelar.
+
+Lo que este cuadernillo **no** hace por ti: elegir tu caso, redactar tus
+justificaciones y decidir qué gráficos responden a tu pregunta de negocio. Un
+informe con veinte gráficos sin interpretación vale menos que uno con cinco bien
+argumentados.
+
+::: {.callout-tip appearance="simple"}
+## Antes de entregar, verifica
+
+1. ¿Está declarada la unidad de análisis?
+2. ¿Cada decisión de limpieza tiene una justificación escrita?
+3. ¿Cada gráfico responde a una pregunta explícita?
+4. ¿Reportas cuántos registros se descartaron y por qué?
+5. ¿El cuaderno corre completo, de la primera celda a la última, sin errores?
+6. ¿Usas rutas relativas y semilla fija?
+:::
+:::
+
+El siguiente paso es el [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd),
+que usa el archivo `vivienda_modelado.csv` que acabas de generar.
+
+## Recursos adicionales
+
+- @james2023, capítulo 3 (sección 3.3, sobre problemas en el ajuste de
+  regresión) y capítulo 2.
+- @kuhn2019 — *Feature Engineering and Selection*, disponible en línea. Los
+  capítulos 5 y 6 tratan a fondo la codificación de variables categóricas y los
+  faltantes.
+- @kaufman2012 — el artículo de referencia sobre fuga de información, con
+  ejemplos de competencias reales donde el fenómeno pasó desapercibido.
+- [scikit-learn · Common pitfalls and recommended practices](https://scikit-learn.org/stable/common_pitfalls.html) —
+  documentación oficial sobre fuga de información y uso correcto de `Pipeline`.
+- [scikit-learn · ColumnTransformer with mixed types](https://scikit-learn.org/stable/auto_examples/compose/plot_column_transformer_mixed_types.html) —
+  el ejemplo oficial de preprocesamiento mixto.

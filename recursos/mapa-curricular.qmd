@@ -1,0 +1,253 @@
+---
+title: "Mapa curricular"
+subtitle: "Correspondencia entre semanas, encuentros, unidades, resultados de aprendizaje, cuadernillos y actividades institucionales"
+description: "Matriz completa de alineación curricular del espacio académico."
+---
+
+## Los tres resultados de aprendizaje
+
+::: {.grid}
+
+::: {.g-col-12 .g-col-md-4}
+```{=html}
+<span class="ra ra-13">RA13 · Conocimiento</span>
+```
+
+Identifica modelos estadísticos que pueden ser empleados en situaciones problema
+de ciencia de datos donde el comportamiento de una o más variables debe ser
+pronosticado a partir del comportamiento de otras.
+:::
+
+::: {.g-col-12 .g-col-md-4}
+```{=html}
+<span class="ra ra-14">RA14 · Habilidad</span>
+```
+
+Implementa rutinas, en R o Python, que hagan más eficiente el proceso de
+captura, organización y depuración de datos, así como la construcción y
+validación de modelos supervisados.
+:::
+
+::: {.g-col-12 .g-col-md-4}
+```{=html}
+<span class="ra ra-15">RA15 · Aptitud</span>
+```
+
+Participa en discusiones con sus pares y docentes, de manera argumentativa y
+crítica, para establecer pautas estratégicas para la implementación de modelos
+supervisados en problemas de ciencia de datos.
+:::
+
+:::
+
+::: {.callout-note appearance="simple"}
+## Dónde se trabaja cada resultado
+
+**RA13** se trabaja en las secciones conceptuales y en las preguntas de
+interpretación: reconocer qué modelo corresponde a qué situación.
+
+**RA14** se trabaja en todo el código ejecutable y en las microactividades de
+tipo *Prueba* y *Reto*.
+
+**RA15** se trabaja específicamente en las microactividades de tipo *Discute* y
+*Decide*, diseñadas para el debate durante los encuentros sincrónicos, y en la
+sección de ética del Cuadernillo 5.
+:::
+
+## Matriz de alineación
+
+```{python}
+#| label: matriz
+#| echo: false
+import pandas as pd
+
+matriz = pd.DataFrame([
+    {"Semana": "1", "Encuentro": "Virtual 1", "Unidad": "1",
+     "Temas": "Aprendizaje supervisado · X e y · regresión vs. clasificación · train/test · sesgo-varianza · sobreajuste · métricas · presentación del proyecto",
+     "RA": "13, 14, 15", "Cuadernillo": "1",
+     "Microactividades": "Piensa · Detecta · Prueba · Interpreta · Decide · Discute",
+     "Actividad institucional": "—"},
+
+    {"Semana": "2", "Encuentro": "Virtual 2", "Unidad": "1",
+     "Temas": "Estadística descriptiva aplicada · EDA · tipos de variables · calidad de datos · faltantes · atípicos · codificación · escalamiento · data leakage · pipelines",
+     "RA": "13, 14", "Cuadernillo": "2",
+     "Microactividades": "Piensa · Detecta ×2 · Interpreta ×2 · Prueba · Discute",
+     "Actividad institucional": "Actividad 1 · Informe exploratorio (20 %)"},
+
+    {"Semana": "3", "Encuentro": "—", "Unidad": "1",
+     "Temas": "Desarrollo del informe exploratorio",
+     "RA": "14", "Cuadernillo": "2 y 6",
+     "Microactividades": "—",
+     "Actividad institucional": "Actividad 1 · entrega"},
+
+    {"Semana": "4", "Encuentro": "Virtual 3", "Unidad": "2",
+     "Temas": "Regresión simple y múltiple · interpretación · supuestos · residuos · multicolinealidad · RMSE, MAE, R² · validación cruzada · Ridge · Lasso",
+     "RA": "13, 14, 15", "Cuadernillo": "3",
+     "Microactividades": "Interpreta ×2 · Detecta · Compara · Prueba · Decide · Discute",
+     "Actividad institucional": "Actividad 2 · Regresión lineal y regularizada (20 %)"},
+
+    {"Semana": "5", "Encuentro": "Virtual 4", "Unidad": "2",
+     "Temas": "Regresión logística · probabilidad y umbral · matriz de confusión · sensibilidad · especificidad · precisión · F1 · ROC · AUC · árboles · Random Forest · k-NN",
+     "RA": "13, 14, 15", "Cuadernillo": "4",
+     "Microactividades": "Interpreta · Decide · Compara · Detecta · Reto · Discute",
+     "Actividad institucional": "Actividad 2 · entrega"},
+
+    {"Semana": "6", "Encuentro": "—", "Unidad": "2",
+     "Temas": "Comparación de clasificadores · selección de variables · importancia de predictores",
+     "RA": "14, 15", "Cuadernillo": "4 y 6",
+     "Microactividades": "—",
+     "Actividad institucional": "Actividad 3 · Clasificación y desempeño (20 %)"},
+
+    {"Semana": "7", "Encuentro": "Virtual 5", "Unidad": "3",
+     "Temas": "Validación cruzada agrupada · diagnóstico · calibración · curva de aprendizaje · estabilidad · importancia · sesgos en los datos · ética · comunicación",
+     "RA": "13, 14, 15", "Cuadernillo": "5",
+     "Microactividades": "Decide · Interpreta · Compara · Discute · Reto",
+     "Actividad institucional": "Actividad 4 · Proyecto integrador y video (20 %)"},
+
+    {"Semana": "8", "Encuentro": "—", "Unidad": "3",
+     "Temas": "Integración, interpretación crítica y comunicación de resultados",
+     "RA": "14, 15", "Cuadernillo": "5 y 6",
+     "Microactividades": "—",
+     "Actividad institucional": "Actividad 4 · entrega y socialización"},
+
+    {"Semana": "9", "Encuentro": "Cierre", "Unidad": "1, 2 y 3",
+     "Temas": "Síntesis · evaluación · reflexión sobre el curso",
+     "RA": "13, 14, 15", "Cuadernillo": "Todos",
+     "Microactividades": "—",
+     "Actividad institucional": "Actividad 5 · Evaluación final (20 %)"},
+])
+
+matriz.style.hide(axis="index").set_properties(**{"font-size": "0.82rem",
+                                                  "vertical-align": "top"})
+```
+
+## Cobertura del plan de contenidos
+
+Verificación de que todos los contenidos del plan institucional están cubiertos.
+
+### Unidad 1 · Fundamentos estadísticos para el aprendizaje supervisado
+
+| Contenido del plan | Dónde se trabaja |
+|---|---|
+| Variable dependiente y variables predictoras | Cuadernillo 1 · «Qué es el aprendizaje supervisado» |
+| Problema de regresión versus clasificación | Cuadernillo 1 · «Regresión o clasificación: lo decide y» |
+| Estadística descriptiva aplicada | Cuadernillo 2 · «Exploración: mirar antes de modelar» |
+| Preparación y exploración de datos | Cuadernillo 2 · pasos 1 a 5 |
+| Valores faltantes | Cuadernillo 2 · paso 4 (mecanismos MCAR, MAR, MNAR) |
+| Outliers | Cuadernillo 2 · paso 3 (error frente a atípico) |
+| Codificación de variables | Cuadernillo 2 · paso 7 |
+| Normalización y estandarización | Cuadernillo 2 · paso 7 · Cuadernillo 4 (k-NN) |
+| Partición entrenamiento/validación/prueba | Cuadernillo 1 · «Entrenar, predecir y generalizar» |
+| Error de entrenamiento y de generalización | Cuadernillo 1 · «Los dos errores» |
+| Sesgo | Cuadernillo 1 · «Sesgo y varianza» |
+| Varianza | Cuadernillo 1 · «Sesgo y varianza» · Cuadernillo 5 (estabilidad) |
+| Sobreajuste | Cuadernillo 1 · figura de complejidad |
+| Subajuste | Cuadernillo 1 · tabla de diagnóstico · Cuadernillo 5 (curva de aprendizaje) |
+| Métricas de regresión | Cuadernillo 1 · Cuadernillo 3 |
+| Métricas de clasificación | Cuadernillo 1 · Cuadernillo 4 |
+
+: Cobertura de la Unidad 1 {.striped tbl-colwidths="[48,52]"}
+
+### Unidad 2 · Modelos supervisados: regresión y clasificación
+
+| Contenido del plan | Dónde se trabaja |
+|---|---|
+| Regresión lineal simple | Cuadernillo 3 · parte 1 |
+| Regresión lineal múltiple | Cuadernillo 3 · parte 2 |
+| Ridge | Cuadernillo 3 · parte 5 |
+| Lasso | Cuadernillo 3 · parte 5 (con ruta de coeficientes) |
+| Regresión logística | Cuadernillo 4 · parte 1 |
+| Árboles de decisión | Cuadernillo 4 · parte 4 |
+| Random Forest | Cuadernillo 4 · parte 4 |
+| k-nearest neighbors | Cuadernillo 4 · parte 4 (con demostración de escalamiento) |
+| Selección de variables | Cuadernillo 2 (con fuga) · Cuadernillo 3 (Lasso) |
+| Importancia de predictores | Cuadernillo 4 · permutación · Cuadernillo 5 · estabilidad |
+| Validación cruzada | Cuadernillo 3 · parte 4 · Cuadernillo 5 · parte 1 |
+| Comparación de modelos | Cuadernillo 3 · parte 6 · Cuadernillo 4 · parte 4 |
+
+: Cobertura de la Unidad 2 {.striped tbl-colwidths="[48,52]"}
+
+### Unidad 3 · Validación, diagnóstico e interpretación crítica
+
+| Contenido del plan | Dónde se trabaja |
+|---|---|
+| Validación cruzada | Cuadernillo 5 · parte 1 (incluye esquemas agrupados) |
+| Evaluación de desempeño | Cuadernillo 5 · parte 2 |
+| Diagnóstico de modelos | Cuadernillo 3 · parte 1 · Cuadernillo 5 · parte 2 |
+| Residuos | Cuadernillo 3 · diagnóstico visual y Breusch-Pagan |
+| Supuestos | Cuadernillo 3 · tabla de los cuatro supuestos |
+| Multicolinealidad | Cuadernillo 3 · parte 3 (VIF) |
+| Observaciones influyentes | Cuadernillo 3 · distancia de Cook |
+| Matriz de confusión | Cuadernillo 4 · parte 2 |
+| Sensibilidad | Cuadernillo 4 · parte 2 |
+| Especificidad | Cuadernillo 4 · parte 2 |
+| Precisión | Cuadernillo 4 · parte 2 |
+| Recall | Cuadernillo 4 · parte 2 |
+| F1 | Cuadernillo 4 · parte 2 |
+| ROC | Cuadernillo 4 · parte 3 |
+| AUC | Cuadernillo 4 · parte 3 |
+| Comparación de modelos | Cuadernillo 5 · parte 3 |
+| Estabilidad y robustez | Cuadernillo 5 · parte 3 (diez semillas) |
+| Interpretación de predicciones | Cuadernillo 4 · razones de momios · Cuadernillo 5 · calibración |
+| Importancia de variables | Cuadernillo 4 · parte 4 · Cuadernillo 5 · parte 3 |
+| Sesgos presentes en los datos | Cuadernillo 5 · parte 4 |
+| Ética del modelado predictivo | Cuadernillo 5 · parte 4 |
+| Comunicación para públicos técnicos y no técnicos | Cuadernillo 5 · parte 5 · Cuadernillo 6 · etapa 11 |
+
+: Cobertura de la Unidad 3 {.striped tbl-colwidths="[48,52]"}
+
+## Distribución de las microactividades
+
+```{python}
+#| label: fig-micro
+#| echo: false
+#| fig-cap: "Tipos de microactividad por cuadernillo. Los tipos Discute y Decide son los que trabajan específicamente el RA15."
+import matplotlib.pyplot as plt
+import numpy as np
+
+tipos = ["Piensa", "Prueba", "Interpreta", "Detecta", "Compara", "Decide", "Discute", "Reto"]
+conteo = {
+    "C1": [1, 1, 1, 1, 0, 1, 1, 0],
+    "C2": [1, 1, 2, 2, 0, 0, 1, 0],
+    "C3": [0, 1, 2, 1, 1, 1, 1, 0],
+    "C4": [0, 0, 1, 1, 1, 1, 1, 1],
+    "C5": [0, 0, 1, 0, 1, 1, 1, 1],
+    "C6": [0, 0, 0, 0, 0, 1, 0, 0],
+}
+colores = ["#12304F", "#17808C", "#2E6B4F", "#B4543A", "#6A4C93", "#B07D12", "#0F5E68", "#8A2E4D"]
+
+fig, ax = plt.subplots(figsize=(8.5, 3.8))
+abajo = np.zeros(len(conteo))
+etiquetas = list(conteo.keys())
+valores = np.array(list(conteo.values()))
+for j, (tipo, color) in enumerate(zip(tipos, colores)):
+    ax.bar(etiquetas, valores[:, j], bottom=abajo, label=tipo,
+           color=color, edgecolor="white", width=0.62)
+    abajo += valores[:, j]
+
+ax.set_ylabel("Microactividades")
+ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left", frameon=False, fontsize=9)
+ax.grid(axis="x", visible=False)
+plt.tight_layout()
+plt.show()
+```
+
+## Correspondencia con las actividades institucionales
+
+| Actividad | Semanas | Peso | Producto | Cuadernillo que prepara |
+|---|---|---|---|---|
+| 1 · Estadística descriptiva y limpieza | 2–3 | 20 % | Informe exploratorio | [2](../02-preprocesamiento/cuadernillo-02.qmd) |
+| 2 · Regresión lineal y regularizada | 4–5 | 20 % | Reporte con supuestos, coeficientes y validación cruzada | [3](../03-regresion/cuadernillo-03.qmd) |
+| 3 · Clasificación y comparación | 6 | 20 % | Informe de métricas y desempeño | [4](../04-clasificacion/cuadernillo-04.qmd) |
+| 4 · Proyecto integrador | 7–8 | 20 % | Video de socialización | [5](../05-validacion/cuadernillo-05.qmd) y [6](../06-proyecto/cuadernillo-06.qmd) |
+| 5 · Evaluación final | 9 | 20 % | Evaluación | Todos |
+
+: Actividades institucionales {.striped tbl-colwidths="[28,10,8,32,22]"}
+
+::: {.callout-important appearance="simple"}
+## Las actividades institucionales no se modifican
+
+Este repositorio es material de apoyo. Las actividades calificadas, sus
+enunciados, plazos y rúbricas son los publicados en el aula virtual. Si hay
+discrepancia, prevalece el aula.
+:::

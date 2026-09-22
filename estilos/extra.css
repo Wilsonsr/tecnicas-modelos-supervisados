@@ -1,0 +1,395 @@
+/* ==========================================================================
+   Componentes propios del curso
+   Técnicas de Análisis Estadístico de Modelos Supervisados
+   ========================================================================== */
+
+:root {
+  --c-azul: #12304F;
+  --c-azul-medio: #1D4E7C;
+  --c-teal: #17808C;
+  --c-teal-suave: #E6F2F3;
+  --c-terracota: #B4543A;
+  --c-ambar: #B07D12;
+  --c-verde: #2E6B4F;
+  --c-texto: #16202B;
+  --c-texto-suave: #6B7A8C;
+  --c-borde: #E2E7EC;
+  --c-panel: #F8FAFB;
+  --c-panel-2: #F1F4F7;
+  --c-fondo: #FFFFFF;
+}
+
+body.quarto-dark {
+  --c-azul: #EAF2F8;
+  --c-azul-medio: #7FC4D0;
+  --c-teal: #4FB3C0;
+  --c-teal-suave: #12283A;
+  --c-terracota: #E08163;
+  --c-ambar: #E0B255;
+  --c-verde: #62B58A;
+  --c-texto: #DDE5ED;
+  --c-texto-suave: #9DAEC0;
+  --c-borde: #26384C;
+  --c-panel: #0F1E2E;
+  --c-panel-2: #14263A;
+  --c-fondo: #0B1521;
+}
+
+/* ── Ficha de portada del cuadernillo ─────────────────────────────────── */
+
+.ficha {
+  border: 1px solid var(--c-borde);
+  border-left: 4px solid var(--c-teal);
+  border-radius: 8px;
+  background: var(--c-panel);
+  padding: 1.1rem 1.3rem;
+  margin: 1.4rem 0 2rem 0;
+}
+
+.ficha-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.9rem 1.6rem;
+}
+
+.ficha-item .et {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--c-texto-suave);
+  margin-bottom: 0.15rem;
+}
+
+.ficha-item .vl {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--c-texto);
+  line-height: 1.35;
+}
+
+.ficha hr {
+  border: none;
+  border-top: 1px solid var(--c-borde);
+  margin: 0.9rem 0;
+}
+
+.ficha .previos {
+  font-size: 0.9rem;
+  color: var(--c-texto-suave);
+}
+
+.ficha .previos strong { color: var(--c-texto); }
+
+/* ── Chips de resultados de aprendizaje ───────────────────────────────── */
+
+.ra {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  margin: 0.1rem 0.25rem 0.1rem 0;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.ra-13 { background: #E8EFF6; color: #12304F; border-color: #C4D6E6; }
+.ra-14 { background: #E6F2F3; color: #0F5E68; border-color: #BFDFE3; }
+.ra-15 { background: #F3EDE4; color: #7A5410; border-color: #E2D3B8; }
+
+body.quarto-dark .ra-13 { background: #16293C; color: #A8CCE6; border-color: #27405A; }
+body.quarto-dark .ra-14 { background: #12313A; color: #7FD3DD; border-color: #1E4E58; }
+body.quarto-dark .ra-15 { background: #322A18; color: #E0C480; border-color: #4E422A; }
+
+/* ── Microactividades ─────────────────────────────────────────────────── */
+
+.micro {
+  border: 1px solid var(--c-borde);
+  border-radius: 8px;
+  background: var(--c-fondo);
+  padding: 0.95rem 1.1rem 0.75rem 1.1rem;
+  margin: 1.5rem 0;
+  position: relative;
+}
+
+.micro > .micro-cab {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed var(--c-borde);
+}
+
+.micro .tipo {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.micro .titulo { font-weight: 650; font-size: 1rem; color: var(--c-texto); }
+.micro .tiempo {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--c-texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+.micro > p:last-child { margin-bottom: 0.3rem; }
+
+.micro.piensa   { border-left: 4px solid #1D4E7C; }
+.micro.piensa   .tipo { background: #1D4E7C; }
+.micro.prueba   { border-left: 4px solid #17808C; }
+.micro.prueba   .tipo { background: #17808C; }
+.micro.interpreta { border-left: 4px solid #2E6B4F; }
+.micro.interpreta .tipo { background: #2E6B4F; }
+.micro.detecta  { border-left: 4px solid #B4543A; }
+.micro.detecta  .tipo { background: #B4543A; }
+.micro.compara  { border-left: 4px solid #6A4C93; }
+.micro.compara  .tipo { background: #6A4C93; }
+.micro.decide   { border-left: 4px solid #B07D12; }
+.micro.decide   .tipo { background: #B07D12; }
+.micro.discute  { border-left: 4px solid #0F5E68; }
+.micro.discute  .tipo { background: #0F5E68; }
+.micro.reto     { border-left: 4px solid #8A2E4D; }
+.micro.reto     .tipo { background: #8A2E4D; }
+
+body.quarto-dark .micro { background: var(--c-panel); }
+
+/* ── Ruta de aprendizaje (página de inicio) ───────────────────────────── */
+
+.ruta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+  margin: 1.8rem 0 2.4rem 0;
+  counter-reset: paso;
+}
+
+.ruta .paso {
+  position: relative;
+  border: 1px solid var(--c-borde);
+  border-top: 3px solid var(--c-teal);
+  border-radius: 6px;
+  background: var(--c-panel);
+  padding: 0.85rem 0.9rem;
+}
+
+.ruta .paso::before {
+  counter-increment: paso;
+  content: counter(paso);
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--c-teal);
+  letter-spacing: 0.08em;
+  margin-bottom: 0.25rem;
+}
+
+.ruta .paso b,
+.ruta .paso strong {
+  display: block;
+  font-size: 0.93rem;
+  color: var(--c-texto);
+  line-height: 1.3;
+  margin-bottom: 0.2rem;
+}
+
+.ruta .paso span {
+  font-size: 0.8rem;
+  color: var(--c-texto-suave);
+  line-height: 1.4;
+}
+
+/* ── Tarjetas de cuadernillo ──────────────────────────────────────────── */
+
+.tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 1rem;
+  margin: 1.6rem 0 2.2rem 0;
+}
+
+.tarjeta {
+  display: block;
+  border: 1px solid var(--c-borde);
+  border-radius: 8px;
+  background: var(--c-fondo);
+  padding: 1.05rem 1.15rem;
+  text-decoration: none !important;
+  color: inherit !important;
+  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+
+.tarjeta:hover {
+  border-color: var(--c-teal);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(18, 48, 79, 0.09);
+}
+
+.tarjeta .num {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-teal);
+}
+
+.tarjeta h4 {
+  font-size: 1.02rem;
+  margin: 0.3rem 0 0.45rem 0;
+  color: var(--c-texto);
+  line-height: 1.3;
+}
+
+.tarjeta p {
+  font-size: 0.86rem;
+  color: var(--c-texto-suave);
+  margin: 0 0 0.6rem 0;
+  line-height: 1.45;
+}
+
+.tarjeta .meta {
+  font-size: 0.74rem;
+  color: var(--c-texto-suave);
+  border-top: 1px solid var(--c-borde);
+  padding-top: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+body.quarto-dark .tarjeta { background: var(--c-panel); }
+
+/* ── Bloque "Lo que debes recordar" ───────────────────────────────────── */
+
+.recordar {
+  border: 1px solid var(--c-borde);
+  border-left: 4px solid var(--c-azul-medio);
+  border-radius: 8px;
+  background: var(--c-panel-2);
+  padding: 1rem 1.25rem 0.6rem 1.25rem;
+  margin: 2rem 0;
+}
+
+.recordar > p:first-child {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-texto-suave);
+  margin-bottom: 0.5rem;
+}
+
+.recordar ul { margin-bottom: 0.6rem; }
+.recordar li { margin-bottom: 0.35rem; }
+
+/* ── Encabezado hero de la página de inicio ───────────────────────────── */
+
+.hero {
+  border-radius: 10px;
+  background: linear-gradient(135deg, #12304F 0%, #17808C 100%);
+  color: #FFFFFF;
+  padding: 2.3rem 2rem 2rem 2rem;
+  margin: 0 0 1.8rem 0;
+}
+
+.hero .kicker {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.hero h1 {
+  color: #FFFFFF !important;
+  font-size: clamp(1.7rem, 3.6vw, 2.5rem);
+  line-height: 1.15;
+  margin: 0.5rem 0 0.7rem 0;
+  border: none;
+}
+
+.hero p {
+  font-size: 1.02rem;
+  max-width: 62ch;
+  opacity: 0.93;
+  margin-bottom: 0;
+}
+
+.hero .datos {
+  display: flex;
+  gap: 1.8rem;
+  flex-wrap: wrap;
+  margin-top: 1.4rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid rgba(255,255,255,0.22);
+}
+
+.hero .datos div .n {
+  display: block;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hero .datos div .t {
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+/* ── Tabla de unidades ────────────────────────────────────────────────── */
+
+.unidades {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin: 1.4rem 0 2rem 0;
+}
+
+.unidad {
+  border: 1px solid var(--c-borde);
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+  background: var(--c-panel);
+}
+
+.unidad .u {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-teal);
+}
+
+.unidad h4 { font-size: 0.98rem; margin: 0.3rem 0 0.5rem 0; line-height: 1.3; }
+.unidad p { font-size: 0.85rem; color: var(--c-texto-suave); margin: 0; line-height: 1.45; }
+
+/* ── Ajustes menores ──────────────────────────────────────────────────── */
+
+.cell-output-stdout pre { font-size: 0.82rem; }
+
+figure figcaption { font-size: 0.83rem; color: var(--c-texto-suave); }
+
+/* Que las tablas anchas no rompan el layout */
+.cell-output-display > table,
+.cell-output > table { display: block; overflow-x: auto; }
+
+@media (min-width: 576px) {
+  .ruta { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (max-width: 575px) {
+  .hero { padding: 1.5rem 1.2rem; }
+  .ficha-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+}

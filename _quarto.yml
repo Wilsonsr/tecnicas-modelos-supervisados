@@ -1,0 +1,152 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - "*.qmd"
+    - "00-inicio/*.qmd"
+    - "01-fundamentos/*.qmd"
+    - "02-preprocesamiento/*.qmd"
+    - "03-regresion/*.qmd"
+    - "04-clasificacion/*.qmd"
+    - "05-validacion/*.qmd"
+    - "06-proyecto/*.qmd"
+    - "recursos/*.qmd"
+    - "referencias/*.qmd"
+
+website:
+  title: "Modelos Supervisados"
+  description: "Técnicas de Análisis Estadístico de Modelos Supervisados"
+  site-url: "https://wilsonsr.github.io/tecnicas-modelos-supervisados/"
+  repo-url: "https://github.com/Wilsonsr/tecnicas-modelos-supervisados"
+  repo-actions: [source, issue]
+  favicon: imagenes/favicon.svg
+  page-navigation: true
+  back-to-top-navigation: true
+  bread-crumbs: true
+  search:
+    location: navbar
+    type: overlay
+
+  navbar:
+    background: primary
+    pinned: true
+    logo: imagenes/logo.svg
+    left:
+      - text: "Inicio"
+        href: index.qmd
+      - text: "Empezar aquí"
+        href: 00-inicio/como-usar.qmd
+      - text: "Cuadernillos"
+        menu:
+          - text: "0 · Cómo usar el repositorio"
+            href: 00-inicio/como-usar.qmd
+          - text: "1 · Pensar estadísticamente un problema predictivo"
+            href: 01-fundamentos/cuadernillo-01.qmd
+          - text: "2 · Antes de modelar: conocer y preparar los datos"
+            href: 02-preprocesamiento/cuadernillo-02.qmd
+          - text: "3 · De explicar a predecir: modelos de regresión"
+            href: 03-regresion/cuadernillo-03.qmd
+          - text: "4 · Clasificar para tomar decisiones"
+            href: 04-clasificacion/cuadernillo-04.qmd
+          - text: "5 · ¿Podemos confiar en nuestro modelo?"
+            href: 05-validacion/cuadernillo-05.qmd
+          - text: "---"
+          - text: "6 · Proyecto integrador"
+            href: 06-proyecto/cuadernillo-06.qmd
+      - text: "Datos"
+        href: 00-inicio/datos-del-curso.qmd
+      - text: "Recursos"
+        menu:
+          - text: "Mapa curricular"
+            href: recursos/mapa-curricular.qmd
+          - text: "Errores frecuentes"
+            href: recursos/errores-frecuentes.qmd
+          - text: "Glosario"
+            href: recursos/glosario.qmd
+          - text: "Equivalencias R ↔ Python"
+            href: recursos/equivalencias-r-python.qmd
+          - text: "Uso responsable de IA"
+            href: recursos/uso-de-ia.qmd
+          - text: "Bibliografía"
+            href: referencias/bibliografia.qmd
+    tools:
+      - icon: github
+        href: https://github.com/Wilsonsr/tecnicas-modelos-supervisados
+
+  sidebar:
+    style: floating
+    collapse-level: 2
+    contents:
+      - section: "Empezar aquí"
+        contents:
+          - 00-inicio/como-usar.qmd
+          - 00-inicio/instalacion.qmd
+          - 00-inicio/datos-del-curso.qmd
+      - section: "Unidad 1 · Fundamentos"
+        contents:
+          - 01-fundamentos/cuadernillo-01.qmd
+          - 02-preprocesamiento/cuadernillo-02.qmd
+      - section: "Unidad 2 · Modelos supervisados"
+        contents:
+          - 03-regresion/cuadernillo-03.qmd
+          - 04-clasificacion/cuadernillo-04.qmd
+      - section: "Unidad 3 · Validación y diagnóstico"
+        contents:
+          - 05-validacion/cuadernillo-05.qmd
+      - section: "Proyecto integrador"
+        contents:
+          - 06-proyecto/cuadernillo-06.qmd
+      - section: "Recursos"
+        contents:
+          - recursos/mapa-curricular.qmd
+          - recursos/errores-frecuentes.qmd
+          - recursos/glosario.qmd
+          - recursos/equivalencias-r-python.qmd
+          - recursos/uso-de-ia.qmd
+          - referencias/bibliografia.qmd
+
+  page-footer:
+    background: light
+    left: "Técnicas de Análisis Estadístico de Modelos Supervisados"
+    center: "Wilson Sandoval Rodríguez"
+    right: "Material docente · Licencia CC BY-NC-SA 4.0"
+
+format:
+  html:
+    theme:
+      light: [cosmo, estilos/tema-claro.scss]
+      dark: [darkly, estilos/tema-oscuro.scss]
+    css: estilos/extra.css
+    toc: true
+    toc-depth: 3
+    toc-title: "En esta página"
+    toc-location: right
+    number-sections: false
+    code-fold: false
+    code-copy: true
+    code-overflow: wrap
+    code-line-numbers: false
+    highlight-style: github
+    fig-align: center
+    fig-width: 7
+    fig-height: 4.2
+    fig-dpi: 160
+    df-print: paged
+    link-external-newwindow: true
+    link-external-icon: false
+    smooth-scroll: true
+    anchor-sections: true
+    citations-hover: true
+    footnotes-hover: true
+    lang: es
+
+bibliography: referencias/referencias.bib
+
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: false
+  freeze: false
+
+lang: es

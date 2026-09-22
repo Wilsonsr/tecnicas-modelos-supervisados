@@ -1,0 +1,908 @@
+---
+title: "Cuadernillo 3 · De explicar a predecir: modelos de regresión"
+subtitle: "Encuentro virtual 3 — Interpretación, supuestos, validación cruzada y regularización"
+description: "Regresión lineal simple y múltiple, interpretación de coeficientes, residuos, multicolinealidad, RMSE, MAE, R², validación cruzada, Ridge y Lasso."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Encuentro</span><span class="vl">Virtual 3</span></div>
+<div class="ficha-item"><span class="et">Semana</span><span class="vl">4</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">2 · Modelos supervisados</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">120–150 minutos</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span><span class="ra ra-15">RA15</span></span></div>
+<div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 2 · Regresión lineal y regularizada (20 %)</span></div>
+</div>
+<hr>
+<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (train/test, sesgo-varianza) y <a href="../02-preprocesamiento/cuadernillo-02.html">Cuadernillo 2</a> (<code>Pipeline</code>, fuga de información). Se usa el archivo <code>datos/procesados/vivienda_modelado.csv</code> generado allí.</div>
+</div>
+```
+
+## La pregunta detonante
+
+> El comité de crédito no quiere solo un número. Quiere poder decir, ante una
+> auditoría, **por qué** el sistema estimó que ese apartamento vale 480 millones.
+>
+> ¿Se puede tener un modelo que prediga bien **y** que además se pueda explicar?
+> ¿Y qué se sacrifica al exigir las dos cosas?
+
+Esta tensión —predecir bien contra poder explicar— atraviesa todo el
+cuadernillo. La regresión lineal es el lugar donde se ve con más claridad,
+porque es uno de los pocos modelos donde ambas cosas conviven.
+
+## Preparación
+
+```{python}
+#| label: setup
+#| code-summary: "Configuración y datos"
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+import statsmodels.api as sm
+
+SEMILLA = 42
+np.random.seed(SEMILLA)
+plt.rcParams.update({"figure.figsize": (7, 4.2), "axes.grid": True,
+                     "grid.alpha": 0.25, "axes.spines.top": False,
+                     "axes.spines.right": False, "font.size": 10})
+
+vivienda = pd.read_csv("../datos/procesados/vivienda_modelado.csv")
+vivienda["precio_mm"] = vivienda.valor_venta / 1e6   # millones de pesos
+
+print(f"{len(vivienda):,} inmuebles · {vivienda.shape[1]} columnas")
+print(f"Precio mediano: ${vivienda.precio_mm.median():,.0f} millones")
+vivienda.head(4)
+```
+
+::: {.callout-note appearance="simple"}
+## Por qué trabajamos en millones de pesos
+
+Dividir la respuesta por un millón no cambia el modelo: multiplica todos los
+coeficientes por la misma constante. Pero hace que los números sean legibles y
+evita problemas numéricos al elevar el área al cuadrado más adelante.
+
+Las métricas quedan entonces **en millones de pesos**, lo que además facilita la
+interpretación: un RMSE de 385 significa un error típico de 385 millones.
+:::
+
+## Parte 1 · Regresión simple: un predictor, dos lecturas
+
+$$
+\text{precio}_i = \beta_0 + \beta_1 \cdot \text{área}_i + \varepsilon_i
+$$
+
+Para **interpretar** usamos `statsmodels`, que entrega errores estándar,
+intervalos de confianza y valores p. Para **predecir** usaremos `scikit-learn`.
+No son dos formas de hacer lo mismo: responden a preguntas distintas.
+
+```{python}
+#| label: simple
+#| code-summary: "Regresión simple con inferencia"
+datos = vivienda.dropna(subset=["area_m2", "n_cuartos", "n_banos", "n_garajes"]).copy()
+
+X_simple = sm.add_constant(datos[["area_m2"]])
+modelo_simple = sm.OLS(datos.precio_mm, X_simple).fit()
+
+print(modelo_simple.summary2().tables[1].round(3).to_string())
+print(f"\nR² = {modelo_simple.rsquared:.3f}   ·   n = {int(modelo_simple.nobs):,}")
+```
+
+### Cómo se lee esto
+
+```{python}
+#| label: lectura-simple
+#| echo: false
+b1 = modelo_simple.params.iloc[1]
+ic = modelo_simple.conf_int().iloc[1]
+
+pd.DataFrame({
+    "Elemento": ["Coeficiente de área", "Error estándar", "Intervalo de confianza 95 %",
+                 "Valor p", "R²"],
+    "Valor": [f"{b1:.2f}", f"{modelo_simple.bse.iloc[1]:.3f}",
+              f"[{ic.iloc[0]:.2f} ; {ic.iloc[1]:.2f}]",
+              "< 0,001", f"{modelo_simple.rsquared:.3f}"],
+    "Interpretación": [
+        "Cada m² adicional se asocia con $" + f"{b1:.2f}" + " millones más de precio",
+        "Precisión de esa estimación; se usa para el intervalo y el contraste",
+        "Rango de valores compatibles con los datos al 95 % de confianza",
+        "La asociación no es atribuible al azar muestral",
+        f"El área explica el {modelo_simple.rsquared:.0%} de la variabilidad del precio"],
+})
+```
+
+::: {.callout-warning appearance="simple"}
+## Tres cosas que el coeficiente **no** dice
+
+1.  **No dice que ampliar un apartamento aumente su precio en esa cantidad.**
+    Es una asociación observada entre inmuebles distintos, no el efecto de una
+    intervención. Establecer causalidad requiere diseño, no aritmética.
+2.  **No es válido fuera del rango observado.** Los datos van de 25 a 500 m².
+    Extrapolar a un inmueble de 2 000 m² es inventar.
+3.  **No es constante.** Un metro cuadrado en Chapinero y uno en el sur no valen
+    lo mismo, y el modelo simple los promedia. Eso es parte de lo que el
+    modelo múltiple va a corregir.
+:::
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">El intercepto negativo</span><span class="tiempo">10 min</span></div>
+<p>El intercepto de este modelo es negativo: el precio estimado de un inmueble de 0 m² sería negativo.</p>
+<ol>
+<li>¿Es esto un error del modelo? Justifica.</li>
+<li>¿Qué significa realmente el intercepto en una regresión donde x = 0 está fuera del rango de los datos?</li>
+<li>¿Qué transformación simple haría que el intercepto tuviera una interpretación útil? (Pista: piensa en centrar la variable).</li>
+</ol></div>
+```
+
+### El diagnóstico visual que hay que hacer siempre
+
+```{python}
+#| label: fig-residuos-simple
+#| fig-cap: "Tres diagnósticos del modelo simple. Ninguno de los tres se ve bien, y eso es información."
+ajustados = modelo_simple.fittedvalues
+residuos = modelo_simple.resid
+
+fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.6))
+
+# 1 — Residuos contra valores ajustados
+axes[0].scatter(ajustados, residuos, s=5, alpha=0.18, color="#17808C")
+axes[0].axhline(0, color="#B4543A", linewidth=1.2)
+axes[0].set_xlabel("Valor ajustado (millones)")
+axes[0].set_ylabel("Residuo")
+axes[0].set_title("Residuos vs. ajustados", fontsize=10)
+
+# 2 — Gráfico cuantil-cuantil
+sm.qqplot(residuos, line="s", ax=axes[1], markersize=2,
+          markerfacecolor="#17808C", markeredgecolor="#17808C", alpha=0.25)
+axes[1].set_title("Normalidad de los residuos", fontsize=10)
+axes[1].set_xlabel("Cuantiles teóricos")
+axes[1].set_ylabel("Cuantiles muestrales")
+
+# 3 — Escala-ubicación
+axes[2].scatter(ajustados, np.sqrt(np.abs(residuos / residuos.std())),
+                s=5, alpha=0.18, color="#B07D12")
+axes[2].set_xlabel("Valor ajustado (millones)")
+axes[2].set_ylabel("√|residuo estandarizado|")
+axes[2].set_title("Homocedasticidad", fontsize=10)
+
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: breusch-pagan
+#| code-summary: "Contraste formal de homocedasticidad"
+from statsmodels.stats.diagnostic import het_breuschpagan
+
+estadistico, p_valor, _, _ = het_breuschpagan(residuos, modelo_simple.model.exog)
+print(f"Breusch-Pagan: estadístico = {estadistico:.1f}, p = {p_valor:.3g}")
+print("\nH₀: la varianza de los errores es constante (homocedasticidad)")
+print("Se rechaza H₀: la varianza crece con el valor ajustado.")
+```
+
+### Los cuatro supuestos y qué pasa si fallan
+
+| Supuesto | Cómo se revisa | Qué se rompe si falla |
+|---|---|---|
+| **Linealidad** | Residuos vs. ajustados: sin patrón curvo | El modelo está mal especificado; las predicciones se sesgan en zonas del rango |
+| **Independencia** | Conocimiento del diseño; residuos vs. orden | Los errores estándar se subestiman; los valores p mienten |
+| **Homocedasticidad** | Escala-ubicación; Breusch-Pagan | **Las predicciones siguen siendo insesgadas**; los intervalos de confianza no son válidos |
+| **Normalidad de residuos** | Gráfico Q-Q | Con muestras grandes, importa poco para los coeficientes; sí afecta los intervalos de predicción individuales |
+
+: Supuestos de la regresión lineal {.striped tbl-colwidths="[20,32,48]"}
+
+::: {.callout-important}
+## Lo que se rompe y lo que no
+
+Los supuestos de la regresión lineal son condiciones para la **inferencia**
+—errores estándar, valores p, intervalos—, no para la predicción. Un modelo con
+heterocedasticidad severa **puede seguir prediciendo bien en promedio**; lo que
+deja de ser confiable es la afirmación «este coeficiente es significativo» o
+«el precio está entre X e Y con 95 % de confianza».
+
+Por eso este curso separa las dos lecturas. Si tu objetivo es predecir, mide el
+error en datos no vistos. Si tu objetivo es explicar, revisa los supuestos antes
+de interpretar cualquier valor p.
+
+En nuestro caso, la heterocedasticidad tiene un significado claro: **el modelo
+se equivoca mucho más en los inmuebles caros que en los baratos**. Para un
+sistema de avalúo, eso es exactamente lo que hay que reportar.
+:::
+
+## Parte 2 · Regresión múltiple: el significado de «manteniendo lo demás constante»
+
+```{python}
+#| label: multiple
+#| code-summary: "Cuatro predictores"
+predictoras = ["area_m2", "n_cuartos", "n_banos", "n_garajes"]
+
+X_multiple = sm.add_constant(datos[predictoras])
+modelo_multiple = sm.OLS(datos.precio_mm, X_multiple).fit()
+
+print(modelo_multiple.summary2().tables[1].round(3).to_string())
+print(f"\nR² = {modelo_multiple.rsquared:.3f}   ·   "
+      f"R² ajustado = {modelo_multiple.rsquared_adj:.3f}")
+```
+
+Comparemos el coeficiente del área en ambos modelos:
+
+```{python}
+#| label: comparacion-coef
+#| echo: false
+pd.DataFrame({
+    "Modelo": ["Simple (solo área)", "Múltiple (4 predictores)"],
+    "Coeficiente de área": [f"{modelo_simple.params.iloc[1]:.2f}",
+                            f"{modelo_multiple.params['area_m2']:.2f}"],
+    "R²": [f"{modelo_simple.rsquared:.3f}", f"{modelo_multiple.rsquared:.3f}"],
+    "Significado": [
+        "Diferencia de precio entre inmuebles que difieren en 1 m²",
+        "…que difieren en 1 m² **y tienen el mismo** número de cuartos, baños y garajes"],
+})
+```
+
+::: {.callout-note appearance="simple"}
+## El coeficiente cambia porque la pregunta cambió
+
+En el modelo simple, comparar dos inmuebles que difieren en 1 m² implica
+compararlos «con todo lo demás como venga»: el más grande probablemente también
+tenga más baños y más garajes, y el coeficiente absorbe ese paquete completo.
+
+En el modelo múltiple, la comparación es entre inmuebles con **el mismo** número
+de cuartos, baños y garajes. El coeficiente del área baja porque ya no arrastra
+lo que aportan las otras variables.
+
+«Manteniendo lo demás constante» no es una fórmula retórica: es literalmente lo
+que el coeficiente significa.
+:::
+
+### Un coeficiente con el signo «equivocado»
+
+```{python}
+#| label: coef-negativo
+#| echo: false
+b_cuartos = modelo_multiple.params["n_cuartos"]
+print(f"Coeficiente de n_cuartos: {b_cuartos:.1f} millones")
+print("\nEs NEGATIVO. A igualdad de área, baños y garajes, un inmueble con una")
+print(f"habitación más se asocia con ${abs(b_cuartos):.0f} millones MENOS de precio.")
+```
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">¿Está roto el modelo?</span><span class="tiempo">15 min</span></div>
+<p>El coeficiente de <code>n_cuartos</code> es claramente negativo y su valor p es prácticamente cero. Un compañero concluye que «el modelo está mal, porque más habitaciones no puede bajar el precio».</p>
+<ol>
+<li>Explica el mecanismo real detrás de ese signo. (Pista: piensa en dos apartamentos de 80 m², uno con 2 habitaciones y otro con 4).</li>
+<li>¿Qué tipo de inmuebles, en el mercado bogotano, tienen muchas habitaciones pequeñas?</li>
+<li>Si en tu informe reportas este coeficiente sin explicarlo, ¿qué podría concluir erróneamente quien lo lea?</li>
+<li>¿Cambiarías algo del modelo, o simplemente la forma de comunicarlo? Justifica.</li>
+</ol>
+<p>Este es el tipo de hallazgo que distingue un análisis estadístico de una ejecución de código. Una IA puede describir qué es un coeficiente negativo; no puede saber cómo es el mercado inmobiliario de Bogotá.</p></div>
+```
+
+## Parte 3 · Multicolinealidad
+
+Cuando dos predictoras miden casi lo mismo, el modelo no puede repartir el
+crédito entre ellas. El ajuste global no sufre; la **interpretación** se
+desmorona.
+
+```{python}
+#| label: vif
+#| code-summary: "Factor de inflación de la varianza (VIF)"
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+def calcular_vif(df, columnas):
+    X = sm.add_constant(df[columnas])
+    return pd.DataFrame({
+        "variable": X.columns,
+        "VIF": [variance_inflation_factor(X.values, i) for i in range(X.shape[1])],
+    }).query("variable != 'const'").round(2).reset_index(drop=True)
+
+calcular_vif(datos, predictoras)
+```
+
+Todos los VIF están por debajo de 3: no hay problema. Ahora veamos qué pasa si
+alguien agrega, sin darse cuenta, una variable que mide casi lo mismo que el
+área —por ejemplo, el área tomada de otra fuente con pequeñas diferencias de
+medición:
+
+```{python}
+#| label: vif-colineal
+#| code-summary: "Introducir una variable casi redundante"
+rng = np.random.default_rng(SEMILLA)
+datos["area_catastral"] = datos.area_m2 * 1.08 + rng.normal(0, 1.5, len(datos))
+
+predictoras_col = predictoras + ["area_catastral"]
+calcular_vif(datos, predictoras_col)
+```
+
+```{python}
+#| label: efecto-colinealidad
+#| code-summary: "Qué le pasa a los coeficientes"
+modelo_col = sm.OLS(datos.precio_mm, sm.add_constant(datos[predictoras_col])).fit()
+
+pd.DataFrame({
+    "Modelo": ["Sin área catastral", "Con área catastral"],
+    "Coef. area_m2": [f"{modelo_multiple.params['area_m2']:.2f}",
+                      f"{modelo_col.params['area_m2']:.2f}"],
+    "Error estándar": [f"{modelo_multiple.bse['area_m2']:.3f}",
+                       f"{modelo_col.bse['area_m2']:.3f}"],
+    "Coef. area_catastral": ["—", f"{modelo_col.params['area_catastral']:.2f}"],
+    "R²": [f"{modelo_multiple.rsquared:.4f}", f"{modelo_col.rsquared:.4f}"],
+})
+```
+
+::: {.callout-important}
+## El síntoma de la multicolinealidad
+
+El R² no se movió: `{python} f"{modelo_multiple.rsquared:.4f}".replace(".", ",")`
+contra `{python} f"{modelo_col.rsquared:.4f}".replace(".", ",")`. El modelo
+predice exactamente igual de bien.
+
+Pero el error estándar del coeficiente del área se multiplicó por
+`{python} f"{modelo_col.bse['area_m2']/modelo_multiple.bse['area_m2']:.0f}"`,
+el coeficiente se disparó, y `area_catastral` recibió un coeficiente
+**negativo**: el modelo le está restando al área lo que le suma por otro lado.
+
+Ninguno de los dos coeficientes es interpretable. La multicolinealidad no daña
+la predicción; **destruye la explicación**. Esta es una de las razones por las
+que existen Ridge y Lasso.
+:::
+
+| Rango de VIF | Lectura |
+|---|---|
+| 1 a 5 | Sin problema práctico |
+| 5 a 10 | Zona de atención: revisar qué variables lo causan |
+| Mayor a 10 | Multicolinealidad seria: los coeficientes individuales no son interpretables |
+
+: Referencia habitual para el VIF {.striped tbl-colwidths="[24,76]"}
+
+### Observaciones influyentes
+
+```{python}
+#| label: cook
+#| code-summary: "Distancia de Cook"
+influencia = modelo_multiple.get_influence()
+cook = influencia.cooks_distance[0]
+umbral = 4 / len(datos)
+
+print(f"Umbral de referencia (4/n): {umbral:.5f}")
+print(f"Observaciones por encima del umbral: {(cook > umbral).sum()} "
+      f"({(cook > umbral).mean():.1%} de la muestra)")
+print(f"Distancia de Cook máxima: {cook.max():.4f}")
+print("\nNinguna supera 0,5, el umbral tradicional de preocupación seria.")
+print("Con n grande, muchas observaciones superan 4/n sin ser problemáticas.")
+```
+
+```{=html}
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta el problema</span><span class="titulo">Diagnóstico mal leído</span><span class="tiempo">10 min</span></div>
+<p>Un analista reporta: «encontré 683 observaciones influyentes según el criterio 4/n, así que las eliminé y el R² subió de 0,68 a 0,74. El modelo mejoró.»</p>
+<ol>
+<li>¿Qué significa realmente que el R² suba al eliminar observaciones difíciles?</li>
+<li>¿En qué conjunto se midió ese R² de 0,74? ¿Es comparable con el anterior?</li>
+<li>¿Qué habría que hacer en lugar de eliminar, si se sospecha que esos puntos son distintos?</li>
+</ol></div>
+```
+
+## Parte 4 · Métricas, modelo base y validación cruzada
+
+Pasamos a `scikit-learn`, porque ahora la pregunta es predictiva.
+
+```{python}
+#| label: setup-sklearn
+#| code-summary: "Pipeline y partición"
+from sklearn.model_selection import train_test_split, cross_val_score, KFold, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, PolynomialFeatures
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.dummy import DummyRegressor
+from sklearn.metrics import root_mean_squared_error, mean_absolute_error, r2_score
+
+cols_num = ["area_m2", "n_cuartos", "n_banos", "n_garajes"]
+cols_cat = ["tipo_inmueble", "zona"]
+
+X = vivienda[cols_num + cols_cat]
+y = vivienda["precio_mm"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, random_state=SEMILLA)
+
+preprocesador = ColumnTransformer([
+    ("num", Pipeline([("imputar", SimpleImputer(strategy="median")),
+                      ("escalar", StandardScaler())]), cols_num),
+    ("cat", Pipeline([("imputar", SimpleImputer(strategy="most_frequent")),
+                      ("codificar", OneHotEncoder(handle_unknown="ignore",
+                                                  drop="first",
+                                                  sparse_output=False))]), cols_cat),
+])
+
+print(f"Entrenamiento: {len(X_train):,} · Prueba: {len(X_test):,}")
+```
+
+```{python}
+#| label: evaluar
+#| code-summary: "Función de evaluación reutilizable"
+def evaluar(nombre, modelo, X_tr=X_train, y_tr=y_train, X_te=X_test, y_te=y_test):
+    """Ajusta, predice y devuelve las tres métricas de regresión en prueba."""
+    modelo.fit(X_tr, y_tr)
+    p_te = modelo.predict(X_te)
+    return {
+        "Modelo": nombre,
+        "RMSE": root_mean_squared_error(y_te, p_te),
+        "MAE": mean_absolute_error(y_te, p_te),
+        "R²": r2_score(y_te, p_te),
+    }
+
+resultados = [
+    evaluar("Base: predecir la media", DummyRegressor(strategy="mean")),
+    evaluar("Simple: solo área",
+            Pipeline([("prep", ColumnTransformer([("n", SimpleImputer(strategy="median"),
+                                                   ["area_m2"])])),
+                      ("modelo", LinearRegression())])),
+    evaluar("Múltiple (OLS)",
+            Pipeline([("prep", preprocesador), ("modelo", LinearRegression())])),
+]
+
+pd.DataFrame(resultados).style.format(
+    {"RMSE": "{:.1f}", "MAE": "{:.1f}", "R²": "{:.3f}"}).hide(axis="index")
+```
+
+::: {.callout-tip appearance="simple"}
+## Cómo leer estas tres métricas juntas
+
+- **RMSE** está en millones de pesos y penaliza los errores grandes. Es la
+  métrica natural para el avalúo, donde un error enorme activa un proceso
+  costoso.
+- **MAE** es el error típico «de bolsillo»: la mitad de los casos se equivoca
+  por menos. Siempre es menor que el RMSE; la diferencia entre ambos mide
+  cuánto pesan los errores extremos.
+- **R²** es adimensional y se lee contra el modelo base, que por construcción
+  tiene R² = 0 en el conjunto de prueba.
+
+Un RMSE bastante mayor que el MAE —como aquí— indica que hay un grupo de
+inmuebles donde el modelo falla mucho. En este caso, los caros.
+:::
+
+### Validación cruzada: una estimación, no un número suelto
+
+Una sola partición da un número que depende de la suerte. La validación cruzada
+en $k$ pliegues usa todos los datos de entrenamiento como validación, por turnos.
+
+```{python}
+#| label: cv
+#| code-summary: "Validación cruzada de 5 pliegues"
+cv = KFold(n_splits=5, shuffle=True, random_state=SEMILLA)
+
+flujo_ols = Pipeline([("prep", preprocesador), ("modelo", LinearRegression())])
+
+scores = -cross_val_score(flujo_ols, X_train, y_train, cv=cv,
+                          scoring="neg_root_mean_squared_error")
+
+print("RMSE por pliegue:", np.round(scores, 1))
+print(f"\nPromedio:    {scores.mean():.1f} millones")
+print(f"Desviación:  {scores.std():.1f} millones")
+print(f"Rango:       [{scores.min():.1f} ; {scores.max():.1f}]")
+```
+
+::: {.callout-warning appearance="simple"}
+## La desviación entre pliegues no es un adorno
+
+Si dos modelos difieren en 8 millones de RMSE promedio, pero la desviación
+entre pliegues es de 20 millones, **la diferencia no es distinguible del ruido**.
+Reportar solo el promedio y declarar un ganador es un error frecuente y fácil de
+evitar: basta con mostrar también la dispersión.
+:::
+
+## Parte 5 · Regularización: Ridge y Lasso
+
+Ambas añaden una penalización al tamaño de los coeficientes. La diferencia está
+en la forma de la penalización, y esa forma cambia el comportamiento:
+
+$$
+\underbrace{\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}_{\text{ajuste}} +
+\lambda \underbrace{\sum_{j=1}^{p}\beta_j^2}_{\text{Ridge (L2)}}
+\qquad\qquad
+\underbrace{\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}_{\text{ajuste}} +
+\lambda \underbrace{\sum_{j=1}^{p}|\beta_j|}_{\text{Lasso (L1)}}
+$$
+
+| | Ridge (L2) | Lasso (L1) |
+|---|---|---|
+| **Qué le hace a los coeficientes** | Los encoge hacia cero, sin anularlos | Lleva algunos exactamente a cero |
+| **Selección de variables** | No | Sí, automática |
+| **Con predictoras correlacionadas** | Reparte el peso entre ellas | Elige una y descarta las demás |
+| **Cuándo preferirla** | Muchas variables, todas algo relevantes | Se sospecha que pocas variables importan |
+| **Requiere estandarizar** | **Sí, siempre** | **Sí, siempre** |
+
+: Ridge frente a Lasso {.striped tbl-colwidths="[24,38,38]"}
+
+::: {.callout-important appearance="simple"}
+## Sin estandarizar, la penalización es arbitraria
+
+La penalización castiga el **tamaño numérico** de los coeficientes. Si el área
+está en metros cuadrados y el precio en millones, el coeficiente del área es
+pequeño; si midiéramos el área en kilómetros cuadrados, el mismo efecto tendría
+un coeficiente gigantesco y sería penalizado con dureza.
+
+Es decir: **sin estandarizar, el resultado depende de las unidades de medida.**
+Por eso el `StandardScaler` no es opcional en el *pipeline* de Ridge y Lasso.
+:::
+
+### Primer intento: con todos los datos, no pasa nada
+
+```{python}
+#| label: reg-datos-completos
+#| code-summary: "Ridge y Lasso con 6 700 observaciones y 11 predictores"
+rejilla_ridge = {"modelo__alpha": np.logspace(-2, 4, 40)}
+rejilla_lasso = {"modelo__alpha": np.logspace(-3, 2, 40)}
+
+busqueda_ridge = GridSearchCV(
+    Pipeline([("prep", preprocesador), ("modelo", Ridge())]),
+    rejilla_ridge, cv=cv, scoring="neg_root_mean_squared_error", n_jobs=-1)
+
+busqueda_lasso = GridSearchCV(
+    Pipeline([("prep", preprocesador), ("modelo", Lasso(max_iter=20000))]),
+    rejilla_lasso, cv=cv, scoring="neg_root_mean_squared_error", n_jobs=-1)
+
+resultados_completos = [
+    evaluar("OLS", Pipeline([("prep", preprocesador), ("modelo", LinearRegression())])),
+    evaluar("Ridge", busqueda_ridge),
+    evaluar("Lasso", busqueda_lasso),
+]
+
+pd.DataFrame(resultados_completos).style.format(
+    {"RMSE": "{:.1f}", "MAE": "{:.1f}", "R²": "{:.3f}"}).hide(axis="index")
+```
+
+Las tres filas son prácticamente idénticas. **Y ese es un resultado, no un
+fracaso**: con 6 700 observaciones y once columnas, no hay sobreajuste que
+corregir, y la regularización no tiene nada que hacer.
+
+### Segundo intento: ampliar el modelo y reducir la muestra
+
+Ahora construimos un escenario donde la regularización sí importa: agregamos
+términos cuadráticos e interacciones entre las variables numéricas, y la
+ubicación a nivel de barrio.
+
+```{python}
+#| label: prep-ampliado
+#| code-summary: "Un espacio de predictores mucho más grande"
+vivienda["barrio_comun"] = vivienda.barrio_comun.fillna("SIN DATO")
+barrios_frecuentes = vivienda.barrio_comun.value_counts().head(60).index
+vivienda["barrio_grupo"] = np.where(vivienda.barrio_comun.isin(barrios_frecuentes),
+                                    vivienda.barrio_comun, "OTROS")
+
+cols_cat_amp = ["tipo_inmueble", "zona", "barrio_grupo"]
+
+preprocesador_amp = ColumnTransformer([
+    ("num", Pipeline([
+        ("imputar", SimpleImputer(strategy="median")),
+        ("expandir", PolynomialFeatures(degree=2, include_bias=False)),
+        ("escalar", StandardScaler())]), cols_num),
+    ("cat", Pipeline([
+        ("imputar", SimpleImputer(strategy="most_frequent")),
+        ("codificar", OneHotEncoder(handle_unknown="ignore", drop="first",
+                                    sparse_output=False))]), cols_cat_amp),
+])
+
+X_amp = vivienda[cols_num + cols_cat_amp]
+X_amp_train, X_amp_test, y_amp_train, y_amp_test = train_test_split(
+    X_amp, y, test_size=0.25, random_state=SEMILLA)
+
+n_columnas = len(preprocesador_amp.fit(X_amp_train, y_amp_train).get_feature_names_out())
+print(f"Predictoras originales: {X_amp.shape[1]}")
+print(f"Columnas tras la expansión: {n_columnas}")
+```
+
+```{python}
+#| label: reg-muestra-pequena
+#| code-summary: "El mismo modelo con 200 observaciones de entrenamiento"
+X_chico = X_amp_train.sample(200, random_state=SEMILLA)
+y_chico = y_amp_train.loc[X_chico.index]
+
+comparacion = []
+for nombre, estimador, rejilla in [
+    ("OLS", LinearRegression(), None),
+    ("Ridge", Ridge(), {"modelo__alpha": np.logspace(-2, 4, 40)}),
+    ("Lasso", Lasso(max_iter=50000), {"modelo__alpha": np.logspace(-3, 3, 40)}),
+]:
+    flujo = Pipeline([("prep", preprocesador_amp), ("modelo", estimador)])
+    if rejilla is not None:
+        flujo = GridSearchCV(flujo, rejilla, cv=cv,
+                             scoring="neg_root_mean_squared_error", n_jobs=-1)
+    flujo.fit(X_chico, y_chico)
+
+    final = flujo.best_estimator_ if rejilla is not None else flujo
+    coefs = final.named_steps["modelo"].coef_
+    comparacion.append({
+        "Modelo": nombre,
+        "RMSE entrenamiento": root_mean_squared_error(y_chico, flujo.predict(X_chico)),
+        "RMSE prueba": root_mean_squared_error(y_amp_test, flujo.predict(X_amp_test)),
+        "R² prueba": r2_score(y_amp_test, flujo.predict(X_amp_test)),
+        "α elegido": "—" if rejilla is None else f"{flujo.best_params_['modelo__alpha']:.3g}",
+        "Coef. distintos de 0": int(np.sum(np.abs(coefs) > 1e-8)),
+    })
+
+tabla_reg = pd.DataFrame(comparacion)
+tabla_reg.style.format({"RMSE entrenamiento": "{:.1f}", "RMSE prueba": "{:.1f}",
+                        "R² prueba": "{:.3f}"}).hide(axis="index")
+```
+
+```{python}
+#| label: lectura-reg
+#| echo: false
+ols_tr = tabla_reg.loc[0, "RMSE entrenamiento"]
+ols_te = tabla_reg.loc[0, "RMSE prueba"]
+rid_te = tabla_reg.loc[1, "RMSE prueba"]
+las_nz = tabla_reg.loc[2, "Coef. distintos de 0"]
+
+print(f"OLS   — entrenamiento {ols_tr:.0f} → prueba {ols_te:.0f}  "
+      f"(se deteriora en {ols_te - ols_tr:.0f} millones)")
+print(f"Ridge — prueba {rid_te:.0f}: mejora el RMSE de OLS en "
+      f"{ols_te - rid_te:.0f} millones ({(ols_te - rid_te)/ols_te:.1%})")
+print(f"Lasso — conserva {las_nz} de {n_columnas} coeficientes: "
+      f"descartó {n_columnas - las_nz} predictoras por sí solo")
+```
+
+::: {.callout-important}
+## La regularización no siempre ayuda: ayuda cuando hace falta
+
+Con `{python} f"{n_columnas}"` columnas y solo 200 observaciones de
+entrenamiento, OLS memoriza: ajusta bien lo que ve y se deteriora en prueba.
+Ridge, al encoger los coeficientes, sacrifica ajuste en entrenamiento y gana en
+generalización.
+
+Con 6 700 observaciones y once columnas, la misma técnica no aportó nada.
+
+**La lección no es «usar siempre Ridge».** Es que la regularización administra
+el compromiso sesgo-varianza del Cuadernillo 1, y solo sirve cuando hay varianza
+que administrar. Diagnosticar antes de aplicar.
+:::
+
+### La ruta de los coeficientes de Lasso
+
+```{python}
+#| label: fig-lasso-path
+#| fig-cap: "Cómo se encogen los coeficientes de Lasso al aumentar α. Cada línea es una predictora; cuando toca el cero, sale del modelo."
+from sklearn.linear_model import lasso_path
+
+X_prep = preprocesador_amp.fit_transform(X_chico, y_chico)
+alphas, coefs_path, _ = lasso_path(X_prep, y_chico.to_numpy(),
+                                   alphas=np.logspace(-1, 3, 60))
+
+fig, ax = plt.subplots(figsize=(8, 4.2))
+for j in range(coefs_path.shape[0]):
+    ax.plot(alphas, coefs_path[j], linewidth=0.8, alpha=0.6, color="#17808C")
+
+n_activos = (np.abs(coefs_path) > 1e-8).sum(axis=0)
+ax2 = ax.twinx()
+ax2.plot(alphas, n_activos, color="#B4543A", linewidth=2, label="Coef. activos")
+ax2.set_ylabel("Número de coeficientes distintos de cero", color="#B4543A")
+ax2.tick_params(axis="y", labelcolor="#B4543A")
+ax2.grid(False)
+
+ax.set_xscale("log")
+ax.axhline(0, color="#3C4A5A", linewidth=0.8, linestyle="--")
+ax.set_xlabel("α (fuerza de la penalización, escala logarítmica)")
+ax.set_ylabel("Valor del coeficiente")
+plt.tight_layout()
+plt.show()
+```
+
+```{=html}
+<div class="micro compara"><div class="micro-cab"><span class="tipo">Compara</span><span class="titulo">Ridge contra Lasso, con criterio</span><span class="tiempo">15 min</span></div>
+<p>Usando la tabla de la sección anterior y la figura de la ruta de coeficientes:</p>
+<ol>
+<li>¿Cuál de los dos obtuvo mejor RMSE en prueba? ¿Por cuánto?</li>
+<li>¿Cuál produce un modelo más fácil de comunicar al comité de crédito? ¿Por qué?</li>
+<li>Si la diferencia de RMSE entre ambos es menor que la desviación entre pliegues de la validación cruzada, ¿puedes declarar un ganador? ¿Qué reportarías?</li>
+<li>El comité pide «las cinco variables más importantes». ¿Con cuál de los dos modelos responderías, y qué advertencia incluirías?</li>
+</ol></div>
+```
+
+```{=html}
+<div class="micro prueba"><div class="micro-cab"><span class="tipo">Prueba</span><span class="titulo">Mover el tamaño de la muestra</span><span class="tiempo">10 min</span></div>
+<p>En el bloque <code>reg-muestra-pequena</code>, cambia <code>sample(200, ...)</code> por 400, luego por 1 000 y luego por 3 000. Para cada valor, anota el RMSE en prueba de OLS y de Ridge.</p>
+<ol>
+<li>Grafica la diferencia (OLS − Ridge) contra el tamaño de muestra.</li>
+<li>¿A partir de qué tamaño la regularización deja de aportar?</li>
+<li>Enuncia la regla práctica que se deduce de ese gráfico, relacionándola con la razón entre número de observaciones y número de predictoras.</li>
+</ol></div>
+```
+
+## Parte 6 · Comparación final y elección
+
+```{python}
+#| label: comparacion-final
+#| code-summary: "Todos los modelos, mismo conjunto de prueba"
+tabla_final = pd.DataFrame(resultados + resultados_completos[1:])
+tabla_final = tabla_final.drop_duplicates(subset="Modelo").reset_index(drop=True)
+tabla_final["Mejora sobre base"] = (
+    (tabla_final.RMSE.iloc[0] - tabla_final.RMSE) / tabla_final.RMSE.iloc[0])
+
+tabla_final.style.format({
+    "RMSE": "{:.1f}", "MAE": "{:.1f}", "R²": "{:.3f}",
+    "Mejora sobre base": "{:.1%}"}).hide(axis="index") \
+    .background_gradient(cmap="Greens_r", subset=["RMSE"])
+```
+
+```{python}
+#| label: fig-pred-obs
+#| fig-cap: "Predicho contra observado, modelo múltiple. La dispersión crece con el precio: el modelo es más confiable en el segmento medio."
+flujo_final = Pipeline([("prep", preprocesador), ("modelo", LinearRegression())])
+flujo_final.fit(X_train, y_train)
+pred_final = flujo_final.predict(X_test)
+
+comparar = pd.DataFrame({
+    "Observado": y_test.to_numpy(),
+    "Predicho": pred_final,
+    "Error": pred_final - y_test.to_numpy(),
+    "Área (m²)": X_test.area_m2.to_numpy(),
+    "Zona": X_test.zona.to_numpy(),
+}).sample(min(1500, len(y_test)), random_state=SEMILLA)
+
+fig = px.scatter(comparar, x="Observado", y="Predicho", color="Error",
+                 hover_data=["Área (m²)", "Zona"],
+                 color_continuous_scale="RdBu_r",
+                 color_continuous_midpoint=0,
+                 opacity=0.6, template="simple_white",
+                 labels={"Observado": "Precio observado (millones)",
+                         "Predicho": "Precio predicho (millones)"})
+maximo = float(max(comparar.Observado.max(), comparar.Predicho.max()))
+fig.add_shape(type="line", x0=0, y0=0, x1=maximo, y1=maximo,
+              line=dict(color="#3C4A5A", dash="dash", width=1.2))
+fig.update_layout(height=450, margin=dict(t=30, b=40))
+fig
+```
+
+```{=html}
+<div class="micro decide"><div class="micro-cab"><span class="tipo">Decide</span><span class="titulo">¿Se implementa o no?</span><span class="tiempo">15 min</span></div>
+<p>El comité de crédito recibe el modelo múltiple y pregunta si puede usarse como primer filtro de avalúo. Con los resultados de este cuadernillo:</p>
+<ol>
+<li>¿Qué margen de error típico reportarías en pesos, y cómo lo explicarías a alguien sin formación estadística?</li>
+<li>La figura anterior muestra que el error crece con el precio. ¿Propondrías un umbral de alerta fijo (por ejemplo, ±200 millones) o proporcional (±20 %)? Justifica con lo que ves.</li>
+<li>¿En qué segmento de inmuebles <b>no</b> recomendarías usar el modelo?</li>
+<li>Escribe en una sola frase la limitación que, si se omite, haría irresponsable la implementación.</li>
+</ol>
+<p>Esta microactividad es un ensayo directo del informe de la Actividad 2.</p></div>
+```
+
+## El mismo flujo, en R
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import GridSearchCV, KFold
+import numpy as np
+
+flujo = Pipeline([("prep", preprocesador), ("modelo", Ridge())])
+rejilla = {"modelo__alpha": np.logspace(-2, 4, 40)}
+
+busqueda = GridSearchCV(flujo, rejilla,
+                        cv=KFold(5, shuffle=True, random_state=42),
+                        scoring="neg_root_mean_squared_error")
+busqueda.fit(X_train, y_train)
+busqueda.best_params_
+```
+
+### R (tidymodels)
+
+```{.r}
+library(tidymodels)
+set.seed(42)
+
+receta <- recipe(precio_mm ~ ., data = entrenamiento) |>
+  step_impute_median(all_numeric_predictors()) |>
+  step_impute_mode(all_nominal_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_normalize(all_numeric_predictors())
+
+# mixture = 0 → Ridge · mixture = 1 → Lasso
+modelo_ridge <- linear_reg(penalty = tune(), mixture = 0) |>
+  set_engine("glmnet")
+
+flujo <- workflow() |>
+  add_recipe(receta) |>
+  add_model(modelo_ridge)
+
+pliegues <- vfold_cv(entrenamiento, v = 5)
+rejilla  <- grid_regular(penalty(range = c(-2, 4)), levels = 40)
+
+ajuste <- tune_grid(flujo, resamples = pliegues, grid = rejilla,
+                    metrics = metric_set(rmse, mae, rsq))
+
+select_best(ajuste, metric = "rmse")
+```
+
+:::
+
+Para el diagnóstico de supuestos en R: `plot(modelo_lm)` produce los cuatro
+gráficos clásicos, `car::vif()` calcula el VIF y `lmtest::bptest()` es el
+contraste de Breusch-Pagan.
+
+```{=html}
+<div class="micro discute"><div class="micro-cab"><span class="tipo">Discute</span><span class="titulo">Para el encuentro virtual</span><span class="tiempo">15 min</span></div>
+<p>La regresión lineal de este cuadernillo explica cerca del 72 % de la variabilidad del precio. Un modelo de Random Forest sobre los mismos datos llegaría a un R² más alto, pero no entregaría coeficientes interpretables.</p>
+<p>El comité de crédito debe elegir. Prepara una posición sobre:</p>
+<ol>
+<li>¿En qué condiciones la interpretabilidad deja de ser negociable? Piensa en la auditoría, en la reclamación de un cliente y en la regulación financiera.</li>
+<li>¿Existe una tercera vía entre «modelo interpretable» y «modelo preciso»?</li>
+<li>Si el modelo preciso fuera un 15 % mejor en RMSE, ¿cambiaría tu respuesta? ¿Y si fuera un 2 %?</li>
+</ol>
+<p>En el Cuadernillo 4 vas a tener los dos modelos sobre la mesa para volver a esta discusión con números.</p></div>
+```
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>Un coeficiente de regresión múltiple significa «diferencia en y por unidad de x, <b>manteniendo constantes las demás predictoras</b>». Cambiar el conjunto de predictoras cambia el significado.</li>
+<li>Un signo inesperado suele ser información sobre el fenómeno, no un error del modelo.</li>
+<li>Los supuestos condicionan la <b>inferencia</b>, no la predicción. Heterocedasticidad rompe los intervalos, no el pronóstico promedio.</li>
+<li>La multicolinealidad no daña la predicción; destruye la interpretación de los coeficientes individuales. VIF &gt; 10 es señal seria.</li>
+<li>RMSE castiga los errores grandes; MAE no. La diferencia entre ambos mide cuánto pesan los casos extremos.</li>
+<li>La validación cruzada entrega una media <b>y</b> una dispersión. Sin la dispersión no se puede declarar un ganador.</li>
+<li>Ridge encoge; Lasso encoge y selecciona. Ambos <b>exigen</b> estandarización previa.</li>
+<li>La regularización ayuda cuando hay varianza que controlar: muchas predictoras respecto al número de observaciones. Con datos abundantes, puede no aportar nada.</li>
+<li>El hiperparámetro α se elige por validación cruzada sobre entrenamiento, <b>nunca</b> mirando el conjunto de prueba.</li>
+</ul>
+</div>
+```
+
+## Errores frecuentes en este tema
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Interpretar un coeficiente como efecto causal | Conclusiones falsas y recomendaciones equivocadas | Hablar de asociación; la causalidad exige diseño |
+| Aplicar Ridge o Lasso sin estandarizar | La penalización depende de las unidades de medida | `StandardScaler` dentro del `Pipeline` |
+| Elegir α mirando el conjunto de prueba | El desempeño reportado es optimista | `GridSearchCV` con validación cruzada sobre entrenamiento |
+| Comparar el R² entre modelos con distinto número de predictoras | El R² siempre sube al agregar variables | Usar R² ajustado para comparar ajuste, y el error en prueba para comparar predicción |
+| Reportar solo el promedio de la validación cruzada | Se declaran ganadores que son ruido | Reportar media y desviación entre pliegues |
+| Eliminar observaciones influyentes para subir el R² | Se maquilla el ajuste y se degrada la generalización | Investigar por qué son distintas; considerar un modelo robusto |
+| Comparar RMSE entre modelos con distinta escala de y | Comparación sin sentido | Devolver todo a la misma escala antes de comparar |
+| Ignorar la heterocedasticidad al reportar intervalos | Intervalos de confianza inválidos | Errores estándar robustos, o reportar el error por segmento |
+| Extrapolar fuera del rango observado | Predicciones inventadas | Declarar el dominio de validez del modelo |
+
+: Errores frecuentes del Cuadernillo 3 {.striped tbl-colwidths="[32,36,32]"}
+
+## Conexión con la Actividad 2
+
+::: {.callout-note}
+## Actividad institucional 2 · Regresión lineal y regularizada (20 %, semanas 4 y 5)
+
+El producto es un **reporte con supuestos evaluados, interpretación de
+coeficientes y validación cruzada**. Los tres componentes se trabajaron aquí:
+
+- **Supuestos evaluados**: los tres gráficos de diagnóstico más el contraste de
+  Breusch-Pagan, y —esto es lo que distingue un buen reporte— la explicación de
+  *qué implica* cada incumplimiento para tus conclusiones.
+- **Interpretación de coeficientes**: con el «manteniendo lo demás constante»
+  explícito, el VIF revisado y una lectura de los signos en términos del
+  problema, no de la fórmula.
+- **Validación cruzada**: con media y desviación entre pliegues, y el modelo
+  base como referencia obligatoria.
+
+Además se espera la comparación entre el modelo sin penalización y al menos un
+modelo regularizado, con el α elegido por validación cruzada y una justificación
+de por qué la regularización aportó —o no— en tu caso. **Reportar que no aportó,
+con evidencia, es una respuesta correcta.**
+:::
+
+El siguiente paso es el [Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd),
+donde la variable objetivo deja de ser un número.
+
+## Recursos adicionales
+
+- @james2023, capítulos 3 (regresión lineal) y 6 (selección y regularización).
+  La sección 6.2 es la mejor exposición breve de Ridge y Lasso disponible.
+- @harrell2015, capítulo 4 — sobre estrategias de modelado y los peligros de la
+  selección de variables guiada por los datos.
+- [scikit-learn · Linear Models](https://scikit-learn.org/stable/modules/linear_model.html) —
+  documentación oficial de `LinearRegression`, `Ridge`, `Lasso` y `ElasticNet`.
+- [statsmodels · Regression Diagnostics](https://www.statsmodels.org/stable/examples/notebooks/generated/regression_diagnostics.html) —
+  contrastes formales de supuestos.
+- @kuhn2022, capítulo 11 — comparación de modelos con remuestreo en `tidymodels`.

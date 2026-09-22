@@ -1,0 +1,139 @@
+---
+title: "Uso responsable de inteligencia artificial"
+subtitle: "Qué se puede, qué se debe declarar y qué no reemplaza al criterio profesional"
+description: "Marco de uso de herramientas de IA generativa en el curso, con criterios de declaración y límites."
+---
+
+::: {.callout-note appearance="simple"}
+## El marco institucional prevalece
+
+Esta página expresa el criterio de trabajo del espacio académico. Si el
+reglamento estudiantil o la guía del aula virtual establecen algo distinto,
+prevalecen esos documentos.
+:::
+
+## El punto de partida
+
+Puedes usar herramientas de IA generativa en este curso. No es una concesión: es
+reconocer cómo se trabaja hoy en analítica de datos. Un analista que no sabe
+usarlas está en desventaja, y uno que no sabe cuándo desconfiar de ellas es un
+riesgo.
+
+Lo que el curso evalúa **no es** tu capacidad de producir código. Es tu capacidad
+de **decidir**: qué modelo corresponde, qué métrica responde a la pregunta, qué
+significa ese coeficiente en el mercado concreto que estás analizando, y qué
+harías si el resultado fuera otro.
+
+Ese tipo de juicio no se delega.
+
+## Cómo está diseñado el material
+
+Las microactividades están construidas para que copiar el enunciado a un
+asistente no resuelva la tarea. Casi todas piden una de estas cinco cosas:
+
+| Lo que se pide | Por qué no se resuelve copiando |
+|---|---|
+| Interpretar **tu** salida concreta | El asistente no tiene tus números |
+| Justificar **tu** decisión en **tu** escenario | Depende de costos y contexto que tú defines |
+| Encontrar el error en un fragmento específico | Requiere entender por qué es un error aquí |
+| Comparar dos resultados que obtuviste | Los resultados son tuyos |
+| Explicar la consecuencia práctica de un hallazgo | Requiere conocer el dominio del problema |
+
+: Por qué las microactividades resisten la delegación {.striped tbl-colwidths="[42,58]"}
+
+La pregunta del Cuadernillo 3 sobre por qué el coeficiente de `n_cuartos` es
+negativo es un buen ejemplo. Un asistente puede explicar qué es un coeficiente
+negativo. No puede saber cómo es el mercado inmobiliario bogotano, ni por qué
+esa combinación de variables produce ese signo **en estos datos**.
+
+## Usos que el curso considera apropiados
+
+- **Depurar código.** Pegar un error y pedir que lo expliquen es legítimo y
+  eficiente.
+- **Entender una función.** Qué hace `handle_unknown="ignore"`, qué devuelve
+  `permutation_importance`.
+- **Traducir entre lenguajes.** Convertir un flujo de Python a `tidymodels`.
+- **Explorar alternativas.** «¿Qué otras formas hay de tratar categóricas de alta
+  cardinalidad?» — y luego evaluarlas tú.
+- **Mejorar la redacción** de un texto que **tú** escribiste.
+- **Generar código de apoyo**: un gráfico, una función auxiliar, una tabla.
+- **Contrastar tu razonamiento.** «Argumenté esto, ¿qué objeciones tiene?»
+
+## Usos que comprometen tu aprendizaje —y tu calificación
+
+- Pedir la **interpretación** de un resultado y copiarla sin verificar si
+  corresponde a tus números.
+- Pedir las **conclusiones** del informe.
+- Generar **justificaciones** de decisiones que no tomaste.
+- Entregar código que **no entiendes** y no puedes explicar si te preguntan.
+- Pedir **referencias bibliográficas** y citarlas sin verificar que existen.
+
+::: {.callout-warning}
+## Las referencias inventadas son un problema real
+
+Los modelos de lenguaje generan citas con formato impecable, autores plausibles,
+revistas reales, DOI que parecen válidos… y que no corresponden a ningún
+artículo existente.
+
+**Toda referencia que cites debe haber sido verificada por ti**, localizando el
+documento. Una bibliografía con referencias inexistentes no es un descuido de
+formato: invalida el trabajo, porque las afirmaciones que sostienen no tienen
+respaldo.
+
+Verifica el DOI en [doi.org](https://www.doi.org/), o busca el título exacto en
+Google Scholar. Toma treinta segundos por referencia.
+:::
+
+## Declaración de uso
+
+Cuando uses IA de forma sustantiva en una entrega, incluye una nota breve al
+final del documento. No penaliza. **Omitirla cuando la usaste, sí.**
+
+::: {.callout-tip appearance="simple"}
+## Formato sugerido
+
+> **Uso de herramientas de IA.** Se utilizó \[herramienta\] para \[depurar el
+> código de la sección X / traducir el flujo a R / revisar la redacción\]. La
+> selección de variables, la elección de la métrica y las conclusiones son
+> propias. Las referencias citadas fueron verificadas individualmente.
+
+Dos o tres líneas son suficientes. Se trata de trazabilidad, no de confesión.
+:::
+
+## Dónde la IA falla de forma predecible en este campo
+
+Conocer estos puntos ciegos te vuelve mejor usuario de la herramienta:
+
+| Punto ciego | Qué ocurre | Cómo protegerte |
+|---|---|---|
+| **Fuga de información** | Sugiere flujos donde el preprocesamiento va antes de partir, porque así aparece en miles de tutoriales | Revisa tú que todo esté en el `Pipeline` |
+| **Estructura de los datos** | No sabe que tus 696 filas son 36 personas; propondrá `KFold` | Tú conoces la estructura; declárala en el prompt y verifica |
+| **Métricas por defecto** | Tiende a optimizar exactitud o R² sin preguntar por el costo de los errores | Define la métrica tú, a partir del problema |
+| **Versiones de librerías** | Mezcla APIs de versiones distintas (`sparse` vs. `sparse_output`) | Consulta la documentación oficial de tu versión |
+| **Contexto local** | No conoce el mercado bogotano, ni la normativa colombiana, ni tu operación | Ese conocimiento es tu aporte |
+| **Significancia práctica** | Celebra diferencias de 0,004 de AUC | Aplica tú el criterio de dispersión |
+| **Ética situada** | Da respuestas genéricas sobre sesgo | El análisis de tu caso concreto es tuyo |
+
+: Puntos ciegos frecuentes {.striped tbl-colwidths="[24,40,36]"}
+
+## Una prueba sencilla antes de entregar
+
+::: {.callout-important}
+## La prueba de la pregunta
+
+Toma cualquier párrafo o bloque de código de tu entrega. Imagina que en la
+sustentación te preguntan:
+
+- «¿Por qué hiciste esto así?»
+- «¿Qué pasaría si cambiaras este valor?»
+- «¿Qué significa este número en el problema?»
+
+Si no puedes responder las tres sin consultar nada, ese fragmento no es tuyo
+todavía. Vuelve sobre él hasta que lo sea.
+:::
+
+## Sobre el trabajo en grupo
+
+El proyecto se desarrolla en equipo. El criterio es el mismo: cada integrante
+debe poder explicar **cualquier parte** de la entrega, no solo la suya. La
+división del trabajo es de ejecución, no de comprensión.

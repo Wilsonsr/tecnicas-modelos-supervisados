@@ -1,0 +1,125 @@
+---
+title: "Glosario"
+subtitle: "Términos del curso, en español y en inglés"
+description: "Definiciones breves y precisas de los conceptos del curso, con su equivalente en inglés y el cuadernillo donde se trabajan."
+---
+
+Los términos están en orden alfabético. La columna «inglés» importa porque la
+documentación técnica y casi toda la bibliografía están en ese idioma.
+
+```{python}
+#| label: glosario
+#| echo: false
+import pandas as pd
+
+terminos = [
+ ("Aprendizaje supervisado", "Supervised learning",
+  "Ajuste de un modelo a partir de ejemplos donde se conoce la respuesta, para predecirla en casos nuevos.", "1"),
+ ("AUC", "Area Under the ROC Curve",
+  "Área bajo la curva ROC. Probabilidad de que el modelo asigne mayor puntaje a un positivo que a un negativo tomados al azar.", "4"),
+ ("Calibración", "Calibration",
+  "Correspondencia entre la probabilidad predicha y la frecuencia observada. Un modelo puede discriminar bien y estar mal calibrado.", "5"),
+ ("Clase mayoritaria / minoritaria", "Majority / minority class",
+  "En clasificación, la categoría más y menos frecuente. El desbalance entre ellas condiciona la elección de métricas.", "1, 4"),
+ ("Codificación one-hot", "One-hot encoding",
+  "Conversión de una variable categórica en tantas columnas binarias como niveles tenga (menos una, si se evita la colinealidad).", "2"),
+ ("Curva de aprendizaje", "Learning curve",
+  "Desempeño en entrenamiento y validación en función del número de observaciones. Distingue problemas de sesgo de problemas de varianza.", "5"),
+ ("Curva PR", "Precision-Recall curve",
+  "Precisión frente a sensibilidad para todos los umbrales. Más informativa que la ROC con clases muy desbalanceadas.", "4"),
+ ("Distancia de Cook", "Cook's distance",
+  "Medida de cuánto cambian los coeficientes al eliminar una observación. Detecta observaciones influyentes.", "3"),
+ ("Error de generalización", "Generalization error",
+  "Error esperado en datos no vistos. Es el único que informa sobre la utilidad del modelo.", "1"),
+ ("Error irreducible", "Irreducible error",
+  "Variabilidad de y que ninguna predictora puede explicar. Pone un techo al desempeño alcanzable.", "1"),
+ ("Especificidad", "Specificity, True Negative Rate",
+  "Proporción de negativos reales correctamente identificados: VN / (VN + FP).", "4"),
+ ("Estandarización", "Standardization, z-score scaling",
+  "Transformación a media 0 y desviación 1. Necesaria en modelos de distancia y en los penalizados.", "2"),
+ ("Estratificación", "Stratification",
+  "Partición que conserva la proporción de clases en cada subconjunto.", "1"),
+ ("F1", "F1 score",
+  "Media armónica de precisión y sensibilidad. Resume ambos errores en un número cuando pesan de forma parecida.", "4"),
+ ("Fuga de información", "Data leakage",
+  "El modelo accede, al entrenar, a información no disponible en el momento real de predecir. Produce desempeño irreal.", "2, 5"),
+ ("Heterocedasticidad", "Heteroscedasticity",
+  "Varianza de los errores no constante. Invalida los intervalos de confianza, no necesariamente la predicción media.", "3"),
+ ("Hiperparámetro", "Hyperparameter",
+  "Valor que no se estima del ajuste sino que se elige antes: α en Ridge, profundidad de un árbol, k en k-NN.", "3, 4"),
+ ("Importancia por permutación", "Permutation importance",
+  "Caída del desempeño al desordenar una variable. Mide cuánto usa el modelo esa variable, no su efecto real.", "4, 5"),
+ ("Imputación", "Imputation",
+  "Reemplazo de valores faltantes por una estimación. Debe ajustarse solo con los datos de entrenamiento.", "2"),
+ ("Lasso", "Lasso, L1 regularization",
+  "Penalización por la suma de valores absolutos de los coeficientes. Lleva algunos exactamente a cero: selecciona variables.", "3"),
+ ("Logit", "Logit, log-odds",
+  "Logaritmo del cociente p/(1−p). La regresión logística lo modela como función lineal de las predictoras.", "4"),
+ ("MAE", "Mean Absolute Error",
+  "Promedio del valor absoluto de los errores. Más robusto que el RMSE frente a valores extremos.", "1, 3"),
+ ("MAR / MCAR / MNAR", "Missing At Random, Completely At Random, Not At Random",
+  "Mecanismos de datos faltantes. Determinan qué estrategias de imputación son válidas.", "2"),
+ ("Matriz de confusión", "Confusion matrix",
+  "Tabla de 2×2 con verdaderos y falsos positivos y negativos. De ella salen todas las métricas de clasificación.", "4"),
+ ("Modelo base", "Baseline model",
+  "Modelo trivial (la media, la clase mayoritaria o la regla de negocio) contra el cual se compara todo resultado.", "1"),
+ ("Multicolinealidad", "Multicollinearity",
+  "Predictoras que miden casi lo mismo. No daña la predicción; destruye la interpretación de los coeficientes.", "3"),
+ ("Pipeline", "Pipeline",
+  "Objeto que encadena preprocesamiento y modelo, garantizando que todo se ajuste solo con datos de entrenamiento.", "2"),
+ ("Precisión", "Precision, Positive Predictive Value",
+  "De los casos marcados como positivos, cuántos lo eran: VP / (VP + FP).", "4"),
+ ("Razón de momios", "Odds ratio",
+  "Factor por el que se multiplican las odds al aumentar una unidad la predictora. Es e elevado al coeficiente logístico.", "4"),
+ ("Regularización", "Regularization",
+  "Penalización al tamaño de los coeficientes para reducir la varianza del modelo a cambio de algo de sesgo.", "3"),
+ ("Residuo", "Residual",
+  "Diferencia entre el valor observado y el ajustado. Su análisis diagnostica los supuestos del modelo.", "3"),
+ ("Ridge", "Ridge, L2 regularization",
+  "Penalización por la suma de coeficientes al cuadrado. Los encoge sin anularlos.", "3"),
+ ("RMSE", "Root Mean Squared Error",
+  "Raíz del error cuadrático medio. En las unidades de y; penaliza con fuerza los errores grandes.", "1, 3"),
+ ("ROC", "Receiver Operating Characteristic",
+  "Curva de sensibilidad frente a 1−especificidad para todos los umbrales posibles.", "4"),
+ ("R²", "R-squared, coefficient of determination",
+  "Proporción de la varianza de y explicada por el modelo. Adimensional; 0 equivale al modelo base.", "1, 3"),
+ ("Sensibilidad", "Sensitivity, Recall, True Positive Rate",
+  "De los positivos reales, cuántos detectó el modelo: VP / (VP + FN).", "4"),
+ ("Sesgo (estadístico)", "Bias",
+  "Error sistemático por usar un modelo demasiado rígido para la relación real.", "1"),
+ ("Sesgo (social)", "Bias, unfairness",
+  "Patrón en los datos o en el uso del modelo que produce perjuicio sistemático sobre un grupo.", "5"),
+ ("Sobreajuste", "Overfitting",
+  "El modelo memoriza el ruido del conjunto de entrenamiento. Error bajo en entrenamiento, alto en prueba.", "1"),
+ ("Subajuste", "Underfitting",
+  "El modelo es demasiado simple para la relación real. Error alto en entrenamiento y en prueba.", "1"),
+ ("Umbral", "Threshold, cutoff",
+  "Valor de probabilidad a partir del cual se declara la clase positiva. Es una decisión de negocio, no un valor por defecto.", "4"),
+ ("Validación cruzada", "Cross-validation",
+  "Estimación del desempeño mediante particiones rotativas de los datos de entrenamiento.", "3, 5"),
+ ("Validación cruzada agrupada", "Grouped cross-validation",
+  "Variante que impide que observaciones del mismo individuo o entidad queden en ambos lados de la partición.", "5"),
+ ("Varianza (del modelo)", "Variance",
+  "Sensibilidad del modelo a cambios en la muestra de entrenamiento. Alta varianza implica inestabilidad.", "1, 5"),
+ ("VIF", "Variance Inflation Factor",
+  "Cuánto se infla la varianza de un coeficiente por la colinealidad con otras predictoras. Mayor a 10 es señal seria.", "3"),
+]
+
+pd.DataFrame(terminos, columns=["Término", "Inglés", "Definición", "Cuadernillo"]) \
+  .style.hide(axis="index") \
+  .set_properties(**{"font-size": "0.86rem", "vertical-align": "top"})
+```
+
+::: {.callout-note appearance="simple"}
+## Dos pares de términos que se confunden con frecuencia
+
+**Precisión** (*precision*) frente a **exactitud** (*accuracy*). En el habla
+cotidiana son sinónimos; en clasificación no lo son. La precisión mira solo los
+casos que el modelo marcó como positivos; la exactitud mira todos los casos.
+Traducir *accuracy* como «precisión» es un error frecuente y confuso.
+
+**Sesgo estadístico** frente a **sesgo social**. El primero es error sistemático
+por rigidez del modelo (se corrige con más flexibilidad). El segundo es
+perjuicio sistemático sobre un grupo (no se corrige con más flexibilidad: a
+menudo empeora). Comparten el nombre y no tienen nada que ver.
+:::

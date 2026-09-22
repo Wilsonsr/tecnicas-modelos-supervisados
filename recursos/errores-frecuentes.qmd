@@ -1,0 +1,197 @@
+---
+title: "Errores frecuentes"
+subtitle: "Catálogo consolidado: qué falla, por qué pasa y cómo se corrige"
+description: "Los errores metodológicos más comunes en modelos supervisados, reunidos en un solo lugar para consulta rápida."
+---
+
+Esta página reúne los errores que aparecen distribuidos por los cuadernillos.
+Está pensada como lista de verificación antes de entregar una actividad.
+
+::: {.callout-tip appearance="simple"}
+## Cómo usarla
+
+No la leas de corrido. Búscala cuando estés a punto de entregar, o cuando un
+resultado te parezca demasiado bueno. **Los errores más caros de este campo no
+producen mensajes de error: producen resultados excelentes que no se
+reproducen.**
+:::
+
+## Los cinco que más puntos cuestan
+
+::: {.callout-important}
+## 1. Reportar la exactitud en un problema con clases desbalanceadas
+
+**Por qué pasa.** Es la métrica por defecto y suena bien en una presentación.
+
+**Qué esconde.** Con 9 % de casos positivos, un modelo que nunca predice la
+clase positiva acierta el 91 %. Y no detecta absolutamente nada.
+
+**Corrección.** Reportar siempre la matriz de confusión completa, la
+sensibilidad de la clase minoritaria y el desempeño del modelo trivial como
+referencia. → [Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd)
+:::
+
+::: {.callout-important}
+## 2. Preprocesar antes de partir los datos
+
+**Por qué pasa.** Es más cómodo estandarizar o imputar una sola vez, sobre toda
+la tabla.
+
+**Qué esconde.** El escalador o el imputador vieron el conjunto de prueba. La
+estimación de desempeño queda contaminada, y el sesgo es siempre optimista.
+
+**Corrección.** Todo lo que estime algo a partir de los datos va dentro del
+`Pipeline`. → [Cuadernillo 2](../02-preprocesamiento/cuadernillo-02.qmd)
+:::
+
+::: {.callout-important}
+## 3. Usar el conjunto de prueba para elegir algo
+
+**Por qué pasa.** Se prueban varios modelos, se mira cuál da mejor resultado en
+prueba y se reporta ese número.
+
+**Qué esconde.** El conjunto de prueba dejó de ser independiente en el momento
+en que se usó para decidir. El desempeño reportado ya no estima el desempeño
+real.
+
+**Corrección.** Hiperparámetros y umbrales se eligen por validación cruzada
+sobre entrenamiento. El conjunto de prueba se abre **una vez**, al final.
+→ [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd),
+[Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd)
+:::
+
+::: {.callout-important}
+## 4. Ignorar la estructura de grupos en los datos
+
+**Por qué pasa.** `train_test_split` y `KFold` son lo primero que aparece en
+cualquier tutorial.
+
+**Qué esconde.** Si el mismo individuo, hogar, empresa o sede aparece en
+entrenamiento y en validación, el modelo puede reconocerlo en lugar de
+generalizar. El efecto es mayor cuanto más flexible es el modelo.
+
+**Corrección.** `GroupKFold` o `StratifiedGroupKFold`.
+→ [Cuadernillo 5](../05-validacion/cuadernillo-05.qmd)
+:::
+
+::: {.callout-important}
+## 5. Presentar un modelo sin línea base
+
+**Por qué pasa.** No se piensa en el punto de comparación.
+
+**Qué esconde.** Un R² de 0,62 o un AUC de 0,71 no significan nada en
+abstracto. Pueden ser excelentes o peores que la regla que el negocio ya aplica.
+
+**Corrección.** `DummyRegressor` / `DummyClassifier` en la tabla, y —si existe—
+la regla de negocio vigente. → [Cuadernillo 1](../01-fundamentos/cuadernillo-01.qmd)
+:::
+
+## Catálogo completo por etapa
+
+### Exploración y preparación de datos
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Confiar en el tipo que infiere `pandas` | Una columna numérica leída como texto entra mal al modelo | Revisar `dtypes` contra el tipo estadístico real |
+| Eliminar atípicos con RIC o ±3σ sin mirar la distribución | Se pierden casos reales e importantes en variables asimétricas | Regla de plausibilidad justificada por el dominio |
+| Confundir error con valor atípico | Se eliminan casos válidos o se conservan imposibles | Un error es un valor imposible; un atípico es raro pero real |
+| Imputar sin preguntarse por qué falta | Se sesga la distribución; se destruye información | Evaluar el mecanismo (MCAR, MAR, MNAR) antes de elegir |
+| Imputar faltantes con la media global | Un inmueble de 300 m² recibe el área promedio | Imputación condicional, o categoría explícita `"SIN DATO"` |
+| Aplicar *one-hot* a una variable con cientos de niveles | Matriz enorme, modelo inestable | Agrupar niveles raros (`step_other`, umbral de frecuencia) |
+| Codificar categorías con la media del objetivo usando todos los datos | Fuga severa | *Target encoding* con validación cruzada interna, o evitarlo |
+| No declarar `handle_unknown="ignore"` | El sistema falla con la primera categoría nueva | Declararlo siempre en `OneHotEncoder` |
+| Transformaciones con pérdida de información sin documentar | El trabajo no es auditable | Bitácora de decisiones con justificación e impacto |
+
+: Errores de exploración y preparación {.striped tbl-colwidths="[34,34,32]"}
+
+### Partición y validación
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Partir sin `stratify` en problemas desbalanceados | Un pliegue puede quedar sin casos positivos | `stratify=y` siempre que y sea categórica |
+| Omitir `random_state` | Ninguna comparación es reproducible | Semilla fija en toda función con azar |
+| Usar `KFold` con datos agrupados o temporales | Estimación optimista | `GroupKFold`, `StratifiedGroupKFold`, `TimeSeriesSplit` |
+| Reportar solo la media de la validación cruzada | Se declaran ganadores que son ruido | Reportar media, desviación y —si se puede— varias semillas |
+| Mirar el conjunto de prueba «solo para ver» | Se contamina la estimación final | Abrirlo una sola vez, al final |
+| Seleccionar variables antes de la validación cruzada | Se obtiene señal a partir de ruido puro | La selección va dentro del `Pipeline` |
+
+: Errores de partición y validación {.striped tbl-colwidths="[34,34,32]"}
+
+### Regresión
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Interpretar el coeficiente como efecto causal | Recomendaciones equivocadas | Hablar de asociación; la causalidad requiere diseño |
+| Olvidar el *ceteris paribus* al interpretar | Interpretación sin sentido cuando hay correlación entre predictoras | «Manteniendo constantes las demás» es parte de la frase |
+| Aplicar Ridge o Lasso sin estandarizar | La penalización depende de las unidades | `StandardScaler` dentro del `Pipeline` |
+| Comparar R² entre modelos con distinto número de predictoras | El R² siempre sube al agregar variables | R² ajustado para ajuste; error en prueba para predicción |
+| Comparar RMSE entre variables objetivo de distinta escala | Comparación sin sentido | Devolver todo a la misma escala, o usar R² |
+| Eliminar observaciones influyentes para subir el R² | Se maquilla el ajuste | Investigar por qué son distintas |
+| Ignorar la heterocedasticidad al reportar intervalos | Intervalos de confianza inválidos | Errores estándar robustos, o reportar el error por segmento |
+| Extrapolar fuera del rango observado | Predicciones inventadas | Declarar el dominio de validez |
+| Interpretar coeficientes con VIF alto | Los coeficientes individuales no son interpretables | Revisar VIF antes de interpretar; considerar Ridge |
+
+: Errores de regresión {.striped tbl-colwidths="[34,34,32]"}
+
+### Clasificación
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Usar el umbral 0,5 sin justificarlo | Se pierde la clase minoritaria | Elegir el umbral con una función de costo explícita |
+| Elegir el umbral mirando el conjunto de prueba | Desempeño optimista | Elegirlo por validación cruzada sobre entrenamiento |
+| Interpretar el coeficiente logístico como probabilidad | Interpretación errónea de la magnitud | Convertir a razón de momios con $e^{\beta}$ |
+| Olvidar que las numéricas fueron estandarizadas | «Un año más» cuando en realidad es una desviación estándar | Declarar la escala al interpretar |
+| Usar solo la ROC con clases muy desbalanceadas | El modelo parece mejor de lo que el usuario experimentará | Añadir la curva precisión-sensibilidad |
+| Aplicar k-NN o SVM sin estandarizar | La variable de mayor escala domina la distancia | `StandardScaler` dentro del `Pipeline` |
+| Interpretar la importancia de variables como efecto | Recomendaciones equivocadas | Es «uso por el modelo», no causa ni efecto |
+| Confundir AUC alto con probabilidades confiables | El cálculo de costos se hace sobre una escala distorsionada | Revisar la curva de calibración |
+| Declarar ganador con diferencias de uno o dos casos | Se confunde ruido con mejora | Validación cruzada con dispersión |
+
+: Errores de clasificación {.striped tbl-colwidths="[34,34,32]"}
+
+### Interpretación, comunicación y uso
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Interpretar correlación como causalidad | Conclusiones falsas | En predicción, hablar de asociación |
+| Evaluar solo el desempeño global | Se oculta que el modelo falla en un subgrupo | Reportar por segmentos relevantes |
+| No declarar los usos desaconsejados | El modelo termina usado para lo que no debía | Ficha del modelo con uso previsto y contraindicado |
+| Incluir variables sensibles sin evaluarlas | Riesgo ético y legal, a menudo sin ganancia | Medir el aporte y contrastarlo con el daño potencial |
+| Presentar resultados sin limitaciones | Confianza injustificada en quien decide | Limitaciones dentro de las conclusiones, no al final |
+| Entregar el modelo sin plan de monitoreo | Se degrada en silencio | Definir frecuencia de revisión y señales de reentrenamiento |
+| Gráficos sin interpretación | Muestra ejecución, no análisis | Cada gráfico responde a una pregunta escrita |
+
+: Errores de interpretación y comunicación {.striped tbl-colwidths="[34,34,32]"}
+
+### Reproducibilidad
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Rutas absolutas (`C:/Users/...`) | El cuaderno no corre en otra máquina | Rutas relativas o URL pública |
+| Celdas ejecutadas fuera de orden | El cuaderno no corre de principio a fin | Verificar con «reiniciar y ejecutar todo» |
+| Semilla fija solo en `np.random.seed()` | Las funciones de scikit-learn siguen siendo aleatorias | `random_state` en cada función que use azar |
+| Dependencias no declaradas | Nadie puede reproducir el entorno | `requirements.txt` o `renv.lock` |
+| Datos modificados a mano en Excel | El paso no queda registrado | Toda transformación, en código |
+
+: Errores de reproducibilidad {.striped tbl-colwidths="[34,34,32]"}
+
+## La señal de alarma universal
+
+::: {.callout-warning}
+## Si el resultado es demasiado bueno, sospecha antes de celebrar
+
+Un R² de 0,98 en un problema social, un AUC de 0,97 en predicción de
+comportamiento humano, una exactitud del 99,9 %: en la inmensa mayoría de los
+casos, estos números no son un logro. Son el síntoma de que el modelo está
+leyendo la respuesta por alguna vía.
+
+Revisa, en este orden:
+
+1. ¿Alguna predictora se calcula a partir de la variable objetivo?
+2. ¿Alguna predictora solo se conoce *después* del momento de predecir?
+3. ¿El preprocesamiento vio el conjunto de prueba?
+4. ¿Hay filas duplicadas entre entrenamiento y prueba?
+5. ¿Hay estructura de grupos que la partición ignoró?
+
+Una de esas cinco explica casi todos los casos.
+:::

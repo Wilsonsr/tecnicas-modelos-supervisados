@@ -1,0 +1,313 @@
+---
+title: "Datos del curso"
+subtitle: "Procedencia, diccionarios de variables y advertencias de calidad"
+description: "Los dos conjuntos de datos transversales del curso: de dónde vienen, qué contienen y qué problemas tienen."
+---
+
+El curso trabaja con **dos** conjuntos de datos durante todo el semestre. Esta
+decisión es pedagógica: cambiar de datos en cada técnica impide ver cómo
+evoluciona una misma decisión a medida que crece tu caja de herramientas.
+
+Ambos están en la carpeta `datos/crudos/` y se llaman *crudos* por una razón:
+tienen los problemas con los que llegaron. Limpiarlos es parte del trabajo.
+
+```{python}
+#| label: setup
+#| echo: false
+import pandas as pd
+import numpy as np
+
+pd.set_option("display.max_columns", 40)
+pd.set_option("display.width", 150)
+
+vivienda = pd.read_csv("../datos/crudos/vivienda_bogota.csv")
+ausentismo = pd.read_csv("../datos/crudos/ausentismo_laboral.csv")
+```
+
+## Conjunto 1 · Inmuebles residenciales en Bogotá {#vivienda}
+
+::: {.callout-note appearance="simple"}
+## Ficha técnica
+
+| | |
+|---|---|
+| **Archivo** | `datos/crudos/vivienda_bogota.csv` |
+| **Problema** | Regresión |
+| **Unidad de análisis** | Un inmueble residencial en oferta |
+| **Variable objetivo** | `valor_venta` — precio de venta en pesos colombianos |
+| **Observaciones** | 10 000 |
+| **Variables** | 9 (1 objetivo, 8 candidatas a predictoras) |
+| **Procedencia** | Registros de oferta inmobiliaria en Bogotá, recopilados para uso docente. Versión previa empleada en el curso *Métodos Estadísticos para Analítica de Datos*. |
+| **Se usa en** | Cuadernillos 2, 3 y 5 |
+
+:::
+
+### Diccionario de variables
+
+| Variable | Tipo | Descripción | Observaciones |
+|---|---|---|---|
+| `tipo_inmueble` | Categórica nominal | Apartamento o Casa | 2 categorías, 77 % apartamentos |
+| `valor_venta` | Numérica continua | Precio de venta (COP) | **Variable objetivo.** Contiene valores imposibles |
+| `area_m2` | Numérica continua | Área construida en m² | Contiene ceros: 9,5 % de los registros |
+| `n_cuartos` | Ordinal codificada como texto | Número de habitaciones | Leída como texto por la categoría `"5+"` |
+| `n_banos` | Ordinal codificada como texto | Número de baños | Igual que la anterior; incluye el valor `0` |
+| `n_garajes` | Numérica discreta | Número de garajes | 55 valores faltantes |
+| `zona` | Categórica nominal | Zona de la ciudad | 8 categorías, 188 faltantes |
+| `barrio` | Categórica nominal | Barrio (nomenclatura catastral) | 363 categorías — alta cardinalidad |
+| `barrio_comun` | Categórica nominal | Barrio (nombre de uso común) | 790 categorías, con inconsistencias de mayúsculas |
+
+: Diccionario — vivienda en Bogotá {.striped tbl-colwidths="[18,18,34,30]"}
+
+### Qué problemas tiene (y por qué no los arreglamos por ti)
+
+```{python}
+#| label: calidad-vivienda
+#| code-summary: "Diagnóstico rápido de calidad"
+
+resumen = pd.DataFrame({
+    "tipo": vivienda.dtypes.astype(str),
+    "faltantes": vivienda.isna().sum(),
+    "% faltantes": (vivienda.isna().mean() * 100).round(2),
+    "valores únicos": vivienda.nunique(),
+})
+resumen
+```
+
+Cuatro problemas concretos, todos reales:
+
+```{python}
+#| label: problemas-vivienda
+print(f"1. Área igual a cero:          {(vivienda.area_m2 == 0).sum():>6} registros "
+      f"({(vivienda.area_m2 == 0).mean():.1%})")
+print(f"2. Precio menor a 50 millones: {(vivienda.valor_venta < 50e6).sum():>6} registros")
+print(f"3. Precio mayor a 10 mil mill: {(vivienda.valor_venta > 10e9).sum():>6} registros")
+print(f"   valor máximo observado:     ${vivienda.valor_venta.max():,.0f}")
+print(f"4. 'n_cuartos' es de tipo:     {vivienda.n_cuartos.dtype} "
+      f"— categorías: {sorted(vivienda.n_cuartos.dropna().unique())}")
+```
+
+::: {.callout-important appearance="simple"}
+## Un precio de 870 mil millones de pesos
+
+El valor máximo de `valor_venta` supera los 870 mil millones de pesos
+colombianos para una vivienda residencial. No es un dato atípico interesante:
+es un dato erróneo. La diferencia entre ambas cosas —y qué hacer con cada una—
+es precisamente el tema del [Cuadernillo 2](../02-preprocesamiento/cuadernillo-02.qmd).
+:::
+
+### Un vistazo
+
+```{python}
+#| label: vistazo-vivienda
+vivienda.head(8)
+```
+
+## Conjunto 2 · Ausentismo laboral {#ausentismo}
+
+::: {.callout-note appearance="simple"}
+## Ficha técnica
+
+| | |
+|---|---|
+| **Archivo** | `datos/crudos/ausentismo_laboral.csv` |
+| **Problema** | Clasificación binaria |
+| **Unidad de análisis** | Un evento de ausencia registrado |
+| **Variable objetivo** | Derivada de `horas_ausencia`: ausencia prolongada (> 8 h) |
+| **Observaciones** | 740 registros brutos · 696 tras excluir los no-ausencias |
+| **Variables** | 21 |
+| **Procedencia** | *Absenteeism at work*, UCI Machine Learning Repository. Registros de una empresa de mensajería en Brasil (julio 2007 – julio 2010), recopilados por Martiniano, Ferreira, Sassi y Affonso. |
+| **Se usa en** | Cuadernillos 1, 4 y 5 |
+
+:::
+
+### Diccionario de variables
+
+| Variable | Tipo | Descripción |
+|---|---|---|
+| `id_empleado` | Identificador | Código del trabajador (36 empleados distintos) |
+| `motivo_cod` | Categórica nominal | Motivo de la ausencia, codificado 0–28 (categorías 1–21 según CIE-10; 22–28 motivos administrativos) |
+| `mes` | Categórica ordinal | Mes de la ausencia (0–12; el 0 corresponde a registros sin ausencia real) |
+| `dia_semana` | Categórica ordinal | Día de la semana (2 = lunes … 6 = viernes) |
+| `estacion` | Categórica nominal | Estación del año (1–4) |
+| `gasto_transporte` | Numérica | Gasto de transporte del trabajador |
+| `distancia_km` | Numérica | Distancia entre residencia y trabajo, en km |
+| `antiguedad_anios` | Numérica | Años de servicio en la empresa |
+| `edad` | Numérica | Edad del trabajador |
+| `carga_trabajo_dia` | Numérica | Carga de trabajo promedio por día |
+| `cumplimiento_meta` | Numérica | Porcentaje de cumplimiento de meta |
+| `falla_disciplinaria` | Binaria | 1 si el registro corresponde a una falla disciplinaria |
+| `educacion` | Categórica ordinal | 1 = secundaria, 2 = técnico, 3 = posgrado, 4 = maestría/doctorado |
+| `n_hijos` | Numérica discreta | Número de hijos |
+| `consumo_alcohol_social` | Binaria | 1 = sí |
+| `fumador_social` | Binaria | 1 = sí |
+| `n_mascotas` | Numérica discreta | Número de mascotas |
+| `peso_kg` | Numérica | Peso en kilogramos |
+| `estatura_cm` | Numérica | Estatura en centímetros |
+| `imc` | Numérica | Índice de masa corporal |
+| `horas_ausencia` | Numérica | **Base de la variable objetivo.** Horas de ausencia del evento |
+
+: Diccionario — ausentismo laboral {.striped tbl-colwidths="[24,20,56]"}
+
+### La variable objetivo
+
+La variable objetivo no viene dada: **se construye**. Definimos como *ausencia
+prolongada* la que supera una jornada laboral (8 horas), porque esa es la
+frontera que obliga a la empresa a activar un reemplazo de turno.
+
+```{python}
+#| label: objetivo-ausentismo
+# Los registros con 0 horas no son ausencias: son fallas disciplinarias
+# registradas en el mismo sistema. Se excluyen del problema.
+eventos = ausentismo[ausentismo.horas_ausencia > 0].copy()
+eventos["ausencia_prolongada"] = (eventos.horas_ausencia > 8).astype(int)
+
+tabla = (eventos.ausencia_prolongada
+         .value_counts()
+         .rename({0: "Ausencia corta (≤ 8 h)", 1: "Ausencia prolongada (> 8 h)"})
+         .to_frame("casos"))
+tabla["porcentaje"] = (tabla.casos / tabla.casos.sum() * 100).round(1)
+tabla
+```
+
+::: {.callout-important appearance="simple"}
+## El 91 % gratis
+
+Solo el **9 %** de las ausencias son prolongadas. Un modelo que prediga
+«ninguna ausencia será prolongada» —sin mirar un solo dato— acertará en el 91 %
+de los casos. Y será completamente inútil.
+
+Este es el motivo por el que este conjunto de datos está en el curso. El
+[Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd) está construido
+alrededor de esa trampa.
+:::
+
+### Tres advertencias sobre estos datos
+
+::: {.callout-caution collapse="true"}
+## 1. Los registros no son independientes
+
+Hay 740 registros pero solo **36 empleados**. Algunos aparecen decenas de veces.
+Si partes los datos al azar, registros del mismo empleado quedarán en
+entrenamiento y en prueba, y el modelo podrá «reconocer» al trabajador en lugar
+de aprender un patrón general. El desempeño estimado será optimista.
+
+La solución —validación cruzada agrupada por empleado— se trabaja en el
+[Cuadernillo 5](../05-validacion/cuadernillo-05.qmd).
+
+```{python}
+#| label: agrupamiento
+conteo = ausentismo.id_empleado.value_counts()
+print(f"Empleados distintos: {ausentismo.id_empleado.nunique()}")
+print(f"Registros por empleado — mediana: {conteo.median():.0f}, "
+      f"máximo: {conteo.max()}, mínimo: {conteo.min()}")
+```
+:::
+
+::: {.callout-caution collapse="true"}
+## 2. Hay una fuga estructural evidente
+
+La variable `falla_disciplinaria` vale 1 exactamente en los 40 registros donde
+`horas_ausencia` es 0. No es un predictor: es otra forma de escribir la
+respuesta. Incluirla produciría un modelo perfecto e inservible.
+
+```{python}
+#| label: fuga-estructural
+pd.crosstab(ausentismo.falla_disciplinaria,
+            ausentismo.horas_ausencia == 0,
+            rownames=["falla_disciplinaria"],
+            colnames=["horas_ausencia == 0"])
+```
+
+Encontrar este tipo de relaciones **antes** de modelar es el tema central del
+[Cuadernillo 2](../02-preprocesamiento/cuadernillo-02.qmd).
+:::
+
+::: {.callout-caution collapse="true"}
+## 3. Varias variables son éticamente delicadas
+
+`imc`, `peso_kg`, `consumo_alcohol_social`, `fumador_social` y `motivo_cod`
+—que codifica diagnósticos según la CIE-10— son atributos personales, algunos
+de ellos datos de salud.
+
+Un modelo puede usarlos y mejorar su desempeño. La pregunta no es si *puede*,
+sino si *debe*: un sistema que marque a un trabajador como «riesgo de ausencia
+prolongada» por su índice de masa corporal es discriminación con aritmética
+encima. Y en Colombia, el tratamiento de datos sensibles de salud está regulado
+por la Ley 1581 de 2012.
+
+Esta discusión se desarrolla en el
+[Cuadernillo 5](../05-validacion/cuadernillo-05.qmd), y no es un apéndice: es
+parte del criterio profesional que el curso busca formar.
+:::
+
+### Un vistazo
+
+```{python}
+#| label: vistazo-ausentismo
+ausentismo.head(8)
+```
+
+## Acceso a los datos
+
+::: {.panel-tabset}
+
+### Desde el repositorio clonado
+
+```{.python}
+import pandas as pd
+
+vivienda   = pd.read_csv("datos/crudos/vivienda_bogota.csv")
+ausentismo = pd.read_csv("datos/crudos/ausentismo_laboral.csv")
+```
+
+### Desde una URL (Colab)
+
+```{.python}
+import pandas as pd
+
+BASE = ("https://raw.githubusercontent.com/Wilsonsr/"
+        "tecnicas-modelos-supervisados/main/datos/crudos/")
+
+vivienda   = pd.read_csv(BASE + "vivienda_bogota.csv")
+ausentismo = pd.read_csv(BASE + "ausentismo_laboral.csv")
+```
+
+### En R
+
+```{.r}
+library(readr)
+
+vivienda   <- read_csv("datos/crudos/vivienda_bogota.csv")
+ausentismo <- read_csv("datos/crudos/ausentismo_laboral.csv")
+```
+
+:::
+
+## Datos para el proyecto integrador
+
+Si tu grupo prefiere trabajar el proyecto con **otros datos**, puede hacerlo,
+siempre que cumplan cuatro condiciones:
+
+1.  Son **abiertos** y se puede citar su fuente.
+2.  Tienen una **variable objetivo clara** y una pregunta de decisión detrás.
+3.  Tienen al menos **500 observaciones** y **5 predictores** utilizables.
+4.  **No contienen datos personales sensibles reales** de personas
+    identificables.
+
+Fuentes abiertas recomendadas:
+
+- [Datos Abiertos Colombia](https://www.datos.gov.co/) — datos públicos nacionales.
+- [UCI Machine Learning Repository](https://archive.ics.uci.edu/) — clásico, bien documentado.
+- [OpenML](https://www.openml.org/) — conjuntos con metadatos y tareas asociadas.
+- [DANE · Microdatos](https://microdatos.dane.gov.co/) — encuestas nacionales.
+
+## Fuente original y cita
+
+> Martiniano, A., Ferreira, R. P., Sassi, R. J. y Affonso, C. (2012).
+> *Application of a neuro fuzzy network in prediction of absenteeism at work*.
+> 7th Iberian Conference on Information Systems and Technologies (CISTI).
+> Conjunto de datos disponible en el UCI Machine Learning Repository:
+> [Absenteeism at work](https://archive.ics.uci.edu/dataset/445/absenteeism+at+work).
+
+Los nombres de las variables fueron traducidos al español para uso docente. El
+contenido de los datos no fue modificado.

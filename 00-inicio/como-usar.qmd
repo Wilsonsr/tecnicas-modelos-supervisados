@@ -1,0 +1,326 @@
+---
+title: "Cuadernillo 0 · Cómo usar este repositorio"
+subtitle: "Entorno, datos, reproducibilidad y cómo se conecta todo con el curso"
+description: "Punto de partida: qué encontrarás, cómo está organizado el material y qué necesitas instalar antes del primer encuentro."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Momento</span><span class="vl">Antes del Encuentro 1</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">Transversal</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">20–30 minutos</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-14">RA14 · Habilidad</span></span></div>
+</div>
+<hr>
+<div class="previos"><strong>Conocimientos previos:</strong> manejo básico de Python o R y nociones de estadística descriptiva. No se requiere experiencia previa en aprendizaje automático.</div>
+</div>
+```
+
+## Para qué sirve este sitio
+
+Este repositorio **no es el curso**. El curso vive en el aula virtual, con sus
+encuentros sincrónicos y sus cinco actividades calificadas. Este sitio es el
+material que acompaña esos encuentros y que queda disponible después, cuando
+necesites recordar por qué se estandariza *después* de partir los datos o qué
+significaba exactamente la especificidad.
+
+Está organizado alrededor de una idea: **modelar es decidir**. Cada cuadernillo
+te lleva por la misma secuencia, con problemas reales y datos que no están
+limpios.
+
+::: {.ruta}
+::: {.paso}
+**Problema**
+<span>Qué se quiere decidir.</span>
+:::
+::: {.paso}
+**Datos**
+<span>Qué tenemos y qué le falta.</span>
+:::
+::: {.paso}
+**Exploración**
+<span>Qué muestran antes de modelar.</span>
+:::
+::: {.paso}
+**Pregunta**
+<span>Qué se puede responder con esto.</span>
+:::
+::: {.paso}
+**Modelo**
+<span>Base primero, candidatos después.</span>
+:::
+::: {.paso}
+**Evaluación**
+<span>Con la métrica que importa.</span>
+:::
+::: {.paso}
+**Interpretación**
+<span>Qué significa el resultado.</span>
+:::
+::: {.paso}
+**Decisión**
+<span>Qué se hace con él.</span>
+:::
+:::
+
+## Cómo leer un cuadernillo
+
+Todos los cuadernillos tienen la misma anatomía. Reconocerla te ahorra tiempo:
+
+| Sección | Qué hacer con ella |
+|---|---|
+| **Ficha de portada** | Revisa el tiempo estimado y los conocimientos previos antes de empezar. |
+| **Pregunta detonante** | Intenta responderla *antes* de leer. Aunque te equivoques. |
+| **El caso** | Es el contexto que da sentido a la técnica. No lo saltes. |
+| **Conceptos** | Breves y con el nombre técnico en su sitio. Para consulta posterior. |
+| **Los datos** | Procedencia, unidad de análisis, objetivo y problemas conocidos. |
+| **Exploración e implementación** | Código corto, por tramos, ejecutable tal cual. |
+| **Interpretación** | Preguntas después de cada resultado. Ahí está el aprendizaje. |
+| **Microactividades** | De 5 a 15 minutos. Se hacen durante el encuentro o inmediatamente después. |
+| **Lo que debes recordar** | El resumen que sí deberías poder repetir sin mirar. |
+| **Errores frecuentes** | Los que cuestan puntos en las actividades. |
+| **Conexión con la actividad** | Qué de esto necesitas para la entrega calificada. |
+
+: Anatomía de un cuadernillo {.striped}
+
+### Las microactividades
+
+Aparecen intercaladas en el texto y tienen un tipo, que indica qué se te pide:
+
+```{=html}
+<div class="micro piensa"><div class="micro-cab"><span class="tipo">Piensa</span><span class="titulo">Anticipar un resultado</span><span class="tiempo">5 min</span></div>
+<p>Antes de ejecutar, predice qué va a pasar. Escribe tu respuesta. Luego ejecuta y compara.</p></div>
+
+<div class="micro prueba"><div class="micro-cab"><span class="tipo">Prueba</span><span class="titulo">Modificar y observar</span><span class="tiempo">5–10 min</span></div>
+<p>Cambia un parámetro concreto del código y reporta qué se movió y en qué dirección.</p></div>
+
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">Explicar una salida</span><span class="tiempo">10 min</span></div>
+<p>Toma una salida estadística concreta y explica qué dice, en una frase que entendería quien tomará la decisión.</p></div>
+
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta</span><span class="titulo">Encontrar el error metodológico</span><span class="tiempo">10 min</span></div>
+<p>Se te muestra un fragmento con un error. No siempre falla al ejecutarse: a veces produce un resultado demasiado bueno.</p></div>
+
+<div class="micro compara"><div class="micro-cab"><span class="tipo">Compara</span><span class="titulo">Contrastar dos modelos</span><span class="tiempo">10–15 min</span></div>
+<p>Dos resultados sobre la mesa. ¿En qué se diferencian y por qué?</p></div>
+
+<div class="micro decide"><div class="micro-cab"><span class="tipo">Decide</span><span class="titulo">Elegir bajo un escenario</span><span class="tiempo">10 min</span></div>
+<p>Se te da un contexto con costos asimétricos. Elige un modelo o un umbral y justifica.</p></div>
+
+<div class="micro discute"><div class="micro-cab"><span class="tipo">Discute</span><span class="titulo">Pregunta para el encuentro</span><span class="tiempo">10–15 min</span></div>
+<p>No tiene una única respuesta correcta. Es para argumentar con tus pares en la sesión sincrónica.</p></div>
+
+<div class="micro reto"><div class="micro-cab"><span class="tipo">Reto</span><span class="titulo">Problema corto</span><span class="tiempo">15 min</span></div>
+<p>Un poco de programación o de cálculo. Difícil de resolver sin haber entendido lo anterior.</p></div>
+```
+
+::: {.callout-important appearance="simple"}
+## Las microactividades no son calificadas
+
+No se entregan ni suman puntos. Están diseñadas para que llegues preparado a las
+actividades institucionales, que sí lo son. Si las saltas, llegarás a la
+Actividad 2 sin saber leer un gráfico de residuos.
+:::
+
+## Herramientas y entorno
+
+El curso admite **R o Python**. El material está escrito con Python como ruta
+principal y ofrece la equivalencia en R en los puntos donde la decisión
+metodológica es la misma.
+
+::: {.panel-tabset}
+
+### Python (ruta principal)
+
+Necesitas Python 3.10 o superior y estas librerías:
+
+```{.bash filename="Terminal"}
+pip install pandas numpy scikit-learn matplotlib seaborn plotly statsmodels openpyxl jupyter
+```
+
+O, si prefieres fijar las versiones exactamente como en este sitio:
+
+```{.bash filename="Terminal"}
+pip install -r requirements.txt
+```
+
+No necesitas instalar nada más. Todo el material usa `pandas` y `scikit-learn`
+estándar; no se emplean librerías exóticas ni envoltorios propios del curso.
+
+### R (ruta alterna)
+
+Necesitas R 4.2 o superior y `tidymodels`:
+
+```{.r filename="Consola de R"}
+install.packages(c("tidymodels", "tidyverse", "glmnet", "ranger",
+                   "kknn", "vip", "GGally", "car", "janitor"))
+```
+
+Las equivalencias están en pestañas dentro de cada cuadernillo y, completas,
+en [Equivalencias R ↔ Python](../recursos/equivalencias-r-python.qmd).
+
+### Sin instalar nada
+
+Puedes trabajar en Google Colab: crea un cuaderno nuevo y carga los datos
+directamente desde este repositorio con la URL cruda de cada archivo. En
+[Datos del curso](datos-del-curso.qmd) están las URL.
+
+Ten en cuenta que Colab reinicia su entorno: guarda tu cuaderno en tu Drive y
+vuelve a ejecutar desde la primera celda cada vez.
+
+:::
+
+La guía detallada de instalación y los problemas más comunes están en
+[Instalación paso a paso](instalacion.qmd).
+
+## Reproducibilidad: la regla de las tres condiciones
+
+Un análisis es reproducible si otra persona —o tú mismo dentro de tres
+semanas— obtiene **exactamente** el mismo resultado. En este curso eso implica
+tres condiciones, y las tres se evalúan en las actividades:
+
+1.  **Semilla fija.** Toda función que involucre azar recibe `random_state=42`
+    en Python o `set.seed(42)` en R. Partición de datos, validación cruzada,
+    Random Forest, remuestreo: todo.
+2.  **Rutas relativas.** Nada de `C:/Users/tu_nombre/Escritorio/datos.csv`.
+    Se usa `datos/crudos/archivo.csv` relativo a la raíz del proyecto, o la URL
+    pública del dato.
+3.  **Orden ejecutable de principio a fin.** El cuaderno debe correr completo
+    desde la primera celda sin errores y sin depender de celdas ejecutadas fuera
+    de orden.
+
+```{python}
+#| label: semilla-global
+#| code-summary: "Bloque de inicio recomendado para tus cuadernos"
+import numpy as np
+import pandas as pd
+
+SEMILLA = 42
+np.random.seed(SEMILLA)
+
+pd.set_option("display.max_columns", 40)
+pd.set_option("display.width", 140)
+
+print(f"pandas {pd.__version__} · numpy {np.__version__} · semilla {SEMILLA}")
+```
+
+::: {.callout-warning appearance="simple"}
+## `np.random.seed()` no es suficiente
+
+Fijar la semilla global de NumPy **no** garantiza reproducibilidad en
+scikit-learn. Cada función que use azar necesita su propio `random_state`:
+`train_test_split(..., random_state=42)`, `KFold(..., random_state=42)`,
+`RandomForestClassifier(random_state=42)`. Si omites uno, obtendrás números
+distintos en cada ejecución y no sabrás si una mejora es real o es ruido.
+:::
+
+## Los datos del curso
+
+Dos conjuntos de datos recorren todo el semestre. Ambos vienen con problemas
+reales, y eso es deliberado: aprender a limpiar datos con datos ya limpios es
+imposible.
+
+::: {.panel-tabset}
+
+### Problema de regresión
+
+**Inmuebles residenciales en Bogotá** — 10 000 registros de oferta de vivienda.
+
+```{python}
+#| label: carga-vivienda
+import pandas as pd
+
+vivienda = pd.read_csv("../datos/crudos/vivienda_bogota.csv")
+print(f"Dimensiones: {vivienda.shape[0]} filas × {vivienda.shape[1]} columnas")
+vivienda.head()
+```
+
+La pregunta: **¿cuánto vale un inmueble dadas sus características?** Un problema
+de regresión, con la variable objetivo `valor_venta` en pesos colombianos.
+
+### Problema de clasificación
+
+**Ausentismo laboral** — 740 eventos de ausencia registrados en una empresa de
+mensajería, correspondientes a 36 empleados.
+
+```{python}
+#| label: carga-ausentismo
+ausentismo = pd.read_csv("../datos/crudos/ausentismo_laboral.csv")
+print(f"Dimensiones: {ausentismo.shape[0]} filas × {ausentismo.shape[1]} columnas")
+ausentismo[["id_empleado", "motivo_cod", "dia_semana", "distancia_km",
+            "antiguedad_anios", "edad", "n_hijos", "horas_ausencia"]].head()
+```
+
+La pregunta: **¿esta ausencia durará más de una jornada?** Un problema de
+clasificación binaria con clases muy desbalanceadas.
+
+:::
+
+El diccionario completo de variables, las advertencias de calidad y las URL
+para Colab están en [Datos del curso](datos-del-curso.qmd).
+
+```{=html}
+<div class="micro piensa"><div class="micro-cab"><span class="tipo">Piensa</span><span class="titulo">Antes de mirar los datos</span><span class="tiempo">5 min</span></div>
+<p>Sin ejecutar nada: si tuvieras que estimar el precio de un apartamento en Bogotá con las variables que acabas de ver en <code>vivienda.head()</code>, ¿cuál crees que aportaría más información y cuál menos? Escribe tu orden. En el Cuadernillo 3 vas a contrastarlo con lo que dicen los datos.</p></div>
+```
+
+## Cómo se conecta con las actividades calificadas
+
+Los cuadernillos preparan, no reemplazan. Esta es la correspondencia:
+
+| Cuadernillo | Prepara para | Peso |
+|---|---|---|
+| 1 · Fundamentos | Marco conceptual de todo el curso y del proyecto | — |
+| 2 · Preparación de datos | **Actividad 1** · Informe exploratorio (semanas 2–3) | 20 % |
+| 3 · Regresión | **Actividad 2** · Regresión lineal y regularizada (semanas 4–5) | 20 % |
+| 4 · Clasificación | **Actividad 3** · Clasificación y desempeño (semana 6) | 20 % |
+| 5 · Validación | **Actividad 4** · Proyecto integrador y video (semanas 7–8) | 20 % |
+| 6 · Proyecto | Hilo metodológico de todo el proyecto | — |
+| Todos | **Actividad 5** · Evaluación final (semana 9) | 20 % |
+
+: Correspondencia cuadernillo – actividad institucional {.striped}
+
+El detalle semana a semana está en el [mapa curricular](../recursos/mapa-curricular.qmd).
+
+## Sobre el uso de inteligencia artificial
+
+Puedes usar herramientas de IA en este curso. De hecho, deberías: forman parte
+del trabajo real de un analista. Pero el material está diseñado para que copiar
+un enunciado a un chatbot **no resuelva la tarea**: casi todas las preguntas
+piden interpretar *tu* salida concreta, justificar *tu* decisión en *tu*
+escenario, o encontrar el error en un fragmento específico.
+
+Las reglas de uso, qué debes declarar y qué se considera fraude académico están
+en [Uso responsable de IA](../recursos/uso-de-ia.qmd).
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>Este sitio <b>apoya</b> los encuentros y es material de consulta; las actividades calificadas viven en el aula virtual.</li>
+<li>Todos los cuadernillos siguen la misma ruta: problema → datos → exploración → pregunta → modelo → evaluación → interpretación → decisión.</li>
+<li>Reproducibilidad = semilla fija en <i>cada</i> función aleatoria + rutas relativas + cuaderno ejecutable de principio a fin.</li>
+<li>Dos datasets recorren todo el curso: vivienda en Bogotá (regresión) y ausentismo laboral (clasificación).</li>
+<li>Las microactividades no se califican, pero sin ellas las actividades que sí se califican se vuelven difíciles.</li>
+</ul>
+</div>
+```
+
+## Recursos adicionales
+
+- James, G., Witten, D., Hastie, T. y Tibshirani, R. (2023). *An Introduction to
+  Statistical Learning*. Disponible gratuitamente en
+  [statlearning.com](https://www.statlearning.com/) — es la referencia central
+  del curso, en versiones para R y para Python.
+- [Documentación de scikit-learn](https://scikit-learn.org/stable/user_guide.html) —
+  la sección *User Guide* es mejor material de estudio de lo que su nombre sugiere.
+- [Guía de Quarto](https://quarto.org/docs/guide/) — si quieres entregar tus
+  informes con este mismo formato.
+
+::: {.callout-tip appearance="simple"}
+## Siguiente paso
+
+Si ya tienes el entorno listo, ve directo al
+[Cuadernillo 1](../01-fundamentos/cuadernillo-01.qmd).
+Si algo no instaló bien, pasa primero por [Instalación paso a paso](instalacion.qmd).
+:::

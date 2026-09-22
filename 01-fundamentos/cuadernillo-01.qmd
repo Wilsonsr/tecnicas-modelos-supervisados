@@ -1,0 +1,686 @@
+---
+title: "Cuadernillo 1 · Pensar estadísticamente un problema predictivo"
+subtitle: "Encuentro virtual 1 — Qué significa que un modelo aprenda, y cómo saber si aprendió"
+description: "Aprendizaje supervisado, X e y, regresión frente a clasificación, generalización, partición train/test, sesgo-varianza, sobreajuste y las métricas principales."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Encuentro</span><span class="vl">Virtual 1</span></div>
+<div class="ficha-item"><span class="et">Semana</span><span class="vl">1</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">1 · Fundamentos estadísticos</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">90–120 minutos</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span><span class="ra ra-15">RA15</span></span></div>
+<div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Todo el curso y el proyecto integrador</span></div>
+</div>
+<hr>
+<div class="previos"><strong>Conocimientos previos:</strong> estadística descriptiva (media, desviación, correlación), lectura de un gráfico de dispersión y manejo básico de <code>pandas</code>. No se requiere experiencia previa en modelos predictivos.</div>
+</div>
+```
+
+## La pregunta detonante
+
+> Una empresa de mensajería con 36 conductores registra cada ausencia de su
+> personal. El jefe de operaciones tiene un problema concreto: cuando un
+> trabajador reporta que no vendrá, él debe decidir **en ese momento** si activa
+> un reemplazo de turno, que cuesta dinero y tiempo, o si espera porque el
+> trabajador volverá el mismo día.
+>
+> Tiene tres años de registros. **¿Puede usarlos para anticipar cuáles
+> ausencias van a ser largas?**
+
+Antes de seguir leyendo, responde para ti mismo tres preguntas:
+
+1.  ¿Qué se está prediciendo exactamente? ¿Un número o una categoría?
+2.  ¿Qué información está disponible **en el momento de decidir**?
+3.  Si el modelo se equivoca, ¿qué error cuesta más: activar un reemplazo
+    innecesario, o no activarlo cuando hacía falta?
+
+La tercera pregunta parece secundaria. Es, en realidad, la que determina qué
+modelo servirá y cuál no. Volveremos a ella varias veces.
+
+## Qué es el aprendizaje supervisado
+
+Hay aprendizaje supervisado cuando tenemos, para cada observación, **el valor
+de la respuesta que queremos predecir**. El algoritmo aprende de ejemplos
+donde ya conocemos el resultado, y se espera que esa relación aprendida sirva
+para casos nuevos.
+
+La formulación estadística es sencilla:
+
+$$
+y = f(X) + \varepsilon
+$$
+
+donde:
+
+| Símbolo | Nombre | En nuestro caso |
+|---|---|---|
+| $y$ | Variable respuesta, objetivo o dependiente | ¿La ausencia superó las 8 horas? |
+| $X$ | Variables predictoras, explicativas o *features* | Distancia, antigüedad, edad, día de la semana… |
+| $f$ | La relación sistemática entre $X$ e $y$ | Desconocida. Es lo que queremos estimar |
+| $\varepsilon$ | Error irreducible | Lo que $X$ nunca podrá explicar |
+| $\hat{f}$ | Nuestra estimación de $f$ | El modelo que ajustamos |
+
+: Los cinco elementos de un problema supervisado {.striped tbl-colwidths="[12,34,54]"}
+
+::: {.callout-note appearance="simple"}
+## El error irreducible no es un defecto del modelo
+
+Aunque conociéramos $f$ exactamente, $y$ seguiría teniendo variabilidad: una
+persona se ausenta un día largo por razones que ninguna base de datos registra.
+Ese componente $\varepsilon$ pone un **techo** al desempeño alcanzable. Un
+modelo que parece superarlo casi siempre está mirando información que no
+debería tener. Volveremos a esto cuando hablemos de *fuga de información*.
+:::
+
+### Dos culturas, una misma ecuación
+
+La misma ecuación se usa con dos propósitos distintos, y confundirlos es la
+fuente de la mitad de los errores de interpretación en este campo
+[@shmueli2010; @breiman2001]:
+
+::: {.grid}
+::: {.g-col-12 .g-col-md-6}
+**Explicar (inferencia)**
+
+La pregunta es *por qué*. Interesa $\hat{f}$ en sí misma: qué variables
+importan, con qué signo, con qué magnitud y si el efecto es estadísticamente
+distinguible de cero.
+
+Se prefieren modelos interpretables. Los supuestos importan mucho, porque de
+ellos dependen los errores estándar y los valores p.
+
+*Ejemplo:* ¿la distancia al trabajo influye en la duración de la ausencia,
+controlando por edad y antigüedad?
+:::
+
+::: {.g-col-12 .g-col-md-6}
+**Predecir**
+
+La pregunta es *cuánto* o *cuál*. Interesa $\hat{y}$ para casos nuevos. La
+forma de $\hat{f}$ puede ser opaca si el pronóstico es bueno.
+
+Se prefieren modelos que generalicen. El criterio de éxito es el error en datos
+no vistos, no el ajuste a los datos disponibles.
+
+*Ejemplo:* dado este reporte de ausencia, ¿activo o no el reemplazo?
+:::
+:::
+
+Este curso se llama *Técnicas de Análisis Estadístico de Modelos Supervisados*
+por una razón: trabaja la predicción **sin abandonar** el rigor estadístico. No
+basta con que el modelo acierte; hay que poder explicar por qué acierta, cuándo
+deja de hacerlo y qué supuestos está asumiendo.
+
+## Regresión o clasificación: lo decide la variable respuesta
+
+```{python}
+#| label: setup
+#| code-summary: "Configuración e importación de datos"
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+
+SEMILLA = 42
+np.random.seed(SEMILLA)
+plt.rcParams.update({"figure.figsize": (7, 4.2), "axes.grid": True,
+                     "grid.alpha": 0.25, "axes.spines.top": False,
+                     "axes.spines.right": False, "font.size": 10})
+
+vivienda = pd.read_csv("../datos/crudos/vivienda_bogota.csv")
+ausentismo = pd.read_csv("../datos/crudos/ausentismo_laboral.csv")
+
+print(f"vivienda:   {vivienda.shape[0]:>6} filas × {vivienda.shape[1]} columnas")
+print(f"ausentismo: {ausentismo.shape[0]:>6} filas × {ausentismo.shape[1]} columnas")
+```
+
+La naturaleza de $y$ define todo lo demás: el tipo de modelo, las métricas y la
+forma de interpretar el resultado.
+
+```{python}
+#| label: tipos-problema
+#| code-summary: "La variable objetivo de cada problema"
+
+# Problema 1 — REGRESIÓN: y es un número en una escala continua
+y_regresion = vivienda["valor_venta"]
+
+# Problema 2 — CLASIFICACIÓN: y es una etiqueta
+eventos = ausentismo[ausentismo.horas_ausencia > 0].copy()
+eventos["ausencia_prolongada"] = (eventos.horas_ausencia > 8).astype(int)
+y_clasificacion = eventos["ausencia_prolongada"]
+
+comparacion = pd.DataFrame({
+    "Aspecto": ["Tipo de y", "Valores posibles", "Ejemplo de predicción",
+                "Métrica típica", "Modelo de referencia"],
+    "Regresión (vivienda)": [
+        "Numérica continua",
+        f"${y_regresion.min():,.0f} a ${y_regresion.max():,.0f}",
+        "Este apartamento vale $480 millones",
+        "RMSE, MAE, R²",
+        "Predecir siempre la media"],
+    "Clasificación (ausentismo)": [
+        "Categórica binaria",
+        "0 = corta · 1 = prolongada",
+        "Esta ausencia será prolongada con probabilidad 0,23",
+        "Sensibilidad, especificidad, AUC",
+        "Predecir siempre la clase mayoritaria"],
+})
+comparacion
+```
+
+::: {.callout-tip appearance="simple"}
+## La variable objetivo se construye, no se encuentra
+
+`ausencia_prolongada` no existía en los datos. La creamos nosotros, al decidir
+que el umbral relevante son 8 horas —una jornada— porque ese es el punto en que
+la empresa debe activar un reemplazo.
+
+Otro umbral daría otro problema. Si hubiéramos puesto el corte en 4 horas, el
+36 % de los casos serían positivos en lugar del 9 %, y las conclusiones del
+curso serían distintas. **Definir $y$ ya es una decisión de modelado**, y debe
+justificarse con el problema, no con la comodidad estadística.
+:::
+
+```{=html}
+<div class="micro piensa"><div class="micro-cab"><span class="tipo">Piensa</span><span class="titulo">¿Regresión o clasificación?</span><span class="tiempo">5 min</span></div>
+<p>Clasifica cada situación y justifica en una frase. Ojo con las trampas:</p>
+<ol>
+<li>Predecir cuántas horas durará una ausencia.</li>
+<li>Predecir si una ausencia superará las 8 horas.</li>
+<li>Predecir el estrato socioeconómico (1 a 6) de un barrio.</li>
+<li>Predecir la probabilidad de que un inmueble se venda en menos de 60 días.</li>
+<li>Predecir el número de garajes de un inmueble.</li>
+</ol>
+<p>Las situaciones 3 y 5 no tienen una respuesta única: depende de si tratas el número como cantidad o como categoría ordenada. Argumenta tu elección.</p></div>
+```
+
+## Entrenar, predecir y —sobre todo— generalizar
+
+Un modelo se ajusta con unos datos y se usa con otros. Esa asimetría es el
+corazón de todo el curso.
+
+```{python}
+#| label: dos-errores
+#| code-summary: "Los dos errores que nunca hay que confundir"
+tabla_errores = pd.DataFrame({
+    "": ["Con qué datos se calcula", "Qué mide", "Se puede reducir a voluntad",
+         "Sirve para decidir"],
+    "Error de entrenamiento": [
+        "Los mismos que se usaron para ajustar",
+        "Qué tan bien el modelo memorizó lo que ya vio",
+        "Sí — basta con complicar el modelo",
+        "No"],
+    "Error de generalización": [
+        "Datos que el modelo nunca vio",
+        "Qué tan bien funcionará en la operación real",
+        "No — tiene un mínimo alcanzable",
+        "Sí"],
+})
+tabla_errores
+```
+
+Por eso los datos se parten **antes** de tocar nada:
+
+```{python}
+#| label: particion
+#| code-summary: "Partición entrenamiento / prueba"
+from sklearn.model_selection import train_test_split
+
+X = eventos[["distancia_km", "antiguedad_anios", "edad", "n_hijos",
+             "gasto_transporte", "carga_trabajo_dia", "dia_semana", "mes"]]
+y = eventos["ausencia_prolongada"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.30,        # 30 % se reserva y no se toca
+    stratify=y,            # conserva la proporción de clases en ambas partes
+    random_state=SEMILLA   # reproducibilidad
+)
+
+print(f"Entrenamiento: {len(X_train):>3} eventos · "
+      f"{y_train.mean():.1%} prolongadas")
+print(f"Prueba:        {len(X_test):>3} eventos · "
+      f"{y_test.mean():.1%} prolongadas")
+```
+
+::: {.callout-important appearance="simple"}
+## Tres argumentos, tres decisiones
+
+`test_size=0.30` — cuánto se reserva. Con pocos datos, un test muy pequeño da
+estimaciones inestables; con un test muy grande, queda poco para entrenar.
+Entre 20 % y 30 % es lo habitual.
+
+`stratify=y` — **imprescindible con clases desbalanceadas.** Sin él, el azar
+podría dejar 4 casos positivos en el conjunto de prueba, y cualquier métrica
+calculada sobre ellos sería ruido.
+
+`random_state=42` — sin esto, cada ejecución da una partición distinta y no
+puedes saber si una mejora es real o es suerte.
+:::
+
+### Train / validación / prueba
+
+Con dos conjuntos alcanza para *estimar* el desempeño. Pero en cuanto empiezas
+a **elegir** entre modelos, necesitas un tercero:
+
+| Conjunto | Para qué | Cuántas veces se usa |
+|---|---|---|
+| **Entrenamiento** | Ajustar los parámetros del modelo | Muchas |
+| **Validación** | Elegir entre modelos e hiperparámetros | Muchas |
+| **Prueba** | Estimar el desempeño del modelo final | **Una sola vez, al final** |
+
+: Los tres conjuntos y su función {.striped tbl-colwidths="[22,48,30]"}
+
+En la práctica, el conjunto de validación se suele reemplazar por **validación
+cruzada** sobre los datos de entrenamiento, que aprovecha mejor las
+observaciones disponibles. Es el tema del
+[Cuadernillo 3](../03-regresion/cuadernillo-03.qmd) y del
+[Cuadernillo 5](../05-validacion/cuadernillo-05.qmd).
+
+```{=html}
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta el problema</span><span class="titulo">Un flujo de trabajo que parece correcto</span><span class="tiempo">10 min</span></div>
+<p>Un compañero presenta este procedimiento y reporta una exactitud del 94 %:</p>
+<ol>
+<li>Cargar los datos completos.</li>
+<li>Estandarizar todas las variables numéricas.</li>
+<li>Probar seis modelos y quedarse con el de mejor exactitud.</li>
+<li>Partir en entrenamiento (70 %) y prueba (30 %).</li>
+<li>Entrenar el modelo elegido y reportar su exactitud en prueba.</li>
+</ol>
+<p>Hay <b>dos</b> errores metodológicos, y ninguno produce un mensaje de error al ejecutar. Identifícalos y explica en qué dirección se distorsiona el 94 % reportado. Uno de los dos volverá a aparecer, con nombre propio, en el Cuadernillo 2.</p></div>
+```
+
+## Sobreajuste: cuando memorizar se confunde con aprender
+
+Ahora lo vemos con datos reales. Tomamos una muestra de 120 inmuebles y
+predecimos el precio a partir del área, con polinomios de complejidad
+creciente. El grado del polinomio es nuestra perilla de complejidad.
+
+```{python}
+#| label: overfit-datos
+#| code-summary: "Preparar una muestra pequeña de inmuebles"
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import root_mean_squared_error
+
+# Filtro conservador: solo rangos plausibles (el Cuadernillo 2 lo hará bien)
+viv = vivienda[vivienda.area_m2.between(30, 400) &
+               vivienda.valor_venta.between(100e6, 3e9)].copy()
+viv["precio_mm"] = viv.valor_venta / 1e6          # millones de pesos
+
+muestra = viv.sample(120, random_state=SEMILLA)
+Xv = muestra[["area_m2"]].to_numpy()
+yv = muestra["precio_mm"].to_numpy()
+
+Xv_tr, Xv_te, yv_tr, yv_te = train_test_split(
+    Xv, yv, test_size=0.40, random_state=SEMILLA)
+
+print(f"Entrenamiento: {len(Xv_tr)} inmuebles · Prueba: {len(Xv_te)} inmuebles")
+```
+
+```{python}
+#| label: fig-complejidad
+#| fig-cap: "Error en entrenamiento y en prueba según la complejidad del modelo. Pasa el cursor sobre la curva para ver los valores exactos."
+#| code-summary: "Ajustar polinomios de grado 1 a 12 y medir ambos errores"
+
+resultados = []
+for grado in range(1, 13):
+    modelo = make_pipeline(StandardScaler(),
+                           PolynomialFeatures(grado),
+                           LinearRegression()).fit(Xv_tr, yv_tr)
+    resultados.append({
+        "grado": grado,
+        "Entrenamiento": root_mean_squared_error(yv_tr, modelo.predict(Xv_tr)),
+        "Prueba": root_mean_squared_error(yv_te, modelo.predict(Xv_te)),
+    })
+
+curvas = pd.DataFrame(resultados)
+
+fig = px.line(curvas.melt(id_vars="grado", var_name="Conjunto",
+                          value_name="RMSE (millones COP)"),
+              x="grado", y="RMSE (millones COP)", color="Conjunto",
+              markers=True, template="simple_white",
+              color_discrete_map={"Entrenamiento": "#17808C",
+                                  "Prueba": "#B4543A"})
+fig.update_layout(height=380, hovermode="x unified",
+                  xaxis_title="Grado del polinomio (complejidad del modelo)",
+                  legend_title_text="", margin=dict(t=30, b=40))
+fig
+```
+
+```{python}
+#| label: tabla-complejidad
+#| echo: false
+curvas.round(1).style.format({"Entrenamiento": "{:.1f}", "Prueba": "{:.1f}"}) \
+      .background_gradient(cmap="Reds", subset=["Prueba"]) \
+      .set_caption("RMSE por grado del polinomio (millones de pesos)")
+```
+
+Lo que muestra la figura es el fenómeno central de todo el curso:
+
+- El error de **entrenamiento** baja de forma monótona: `{python} f"{curvas.Entrenamiento.iloc[0]:.0f}"` a `{python} f"{curvas.Entrenamiento.iloc[-1]:.0f}"` millones. Siempre se puede ajustar mejor lo que ya se vio.
+- El error de **prueba** toca su mínimo en grado `{python} int(curvas.loc[curvas.Prueba.idxmin(), "grado"])` y después **sube**: de `{python} f"{curvas.Prueba.min():.0f}"` a `{python} f"{curvas.Prueba.iloc[-1]:.0f}"` millones.
+- La distancia entre ambas curvas es la medida visual del **sobreajuste**.
+
+Con una sola variable predictora, la recta ya es lo mejor disponible. Toda la
+complejidad adicional se dedicó a memorizar el ruido de 72 inmuebles concretos.
+
+### Sesgo y varianza
+
+El error esperado de predicción se descompone en tres partes:
+
+$$
+\mathbb{E}\left[(y - \hat{f}(x))^2\right] =
+\underbrace{\left[\text{Sesgo}(\hat{f}(x))\right]^2}_{\text{error sistemático}} +
+\underbrace{\text{Var}(\hat{f}(x))}_{\text{inestabilidad}} +
+\underbrace{\sigma^2_{\varepsilon}}_{\text{irreducible}}
+$$
+
+| | Sesgo alto (subajuste) | Varianza alta (sobreajuste) |
+|---|---|---|
+| **Qué ocurre** | El modelo es demasiado rígido para la relación real | El modelo se adapta a fluctuaciones que no se repetirán |
+| **Síntoma** | Error alto en entrenamiento **y** en prueba | Error bajo en entrenamiento, alto en prueba |
+| **En la figura** | Grado 1 si la relación fuera curva | Grados 8 a 12 |
+| **Correctivos** | Más variables, modelo más flexible, menos regularización | Más datos, modelo más simple, más regularización, validación cruzada |
+
+: Diagnóstico de sesgo y varianza {.striped tbl-colwidths="[16,42,42]"}
+
+::: {.callout-note appearance="simple"}
+## El compromiso no se elimina, se administra
+
+Reducir el sesgo aumenta la varianza y viceversa. No existe el modelo sin
+compromiso: existe el punto donde su suma es mínima *para este problema, con
+estos datos*. Toda la maquinaria de regularización (Cuadernillo 3) y de
+validación cruzada (Cuadernillo 5) sirve para encontrar ese punto sin hacer
+trampa.
+:::
+
+```{=html}
+<div class="micro prueba"><div class="micro-cab"><span class="tipo">Prueba</span><span class="titulo">Mover el tamaño de la muestra</span><span class="tiempo">10 min</span></div>
+<p>En el bloque <code>overfit-datos</code>, cambia <code>muestra = viv.sample(120, ...)</code> por <code>1200</code> y vuelve a ejecutar la figura. Responde:</p>
+<ol>
+<li>¿En qué grado está ahora el mínimo del error de prueba?</li>
+<li>¿La distancia entre las dos curvas creció o se redujo? ¿Por qué?</li>
+<li>Formula la regla general que acabas de descubrir sobre la relación entre cantidad de datos y complejidad admisible.</li>
+</ol>
+<p>Guarda tu respuesta: en el Cuadernillo 3 vas a usar exactamente este argumento para justificar el uso de regularización.</p></div>
+```
+
+## Métricas: el número tiene que responder a la pregunta
+
+### En regresión
+
+```{python}
+#| label: metricas-regresion
+#| code-summary: "Las tres métricas de regresión, sobre el mismo modelo"
+from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.dummy import DummyRegressor
+
+recta = LinearRegression().fit(Xv_tr, yv_tr)
+pred = recta.predict(Xv_te)
+
+base = DummyRegressor(strategy="mean").fit(Xv_tr, yv_tr)
+pred_base = base.predict(Xv_te)
+
+pd.DataFrame({
+    "Métrica": ["RMSE", "MAE", "R²"],
+    "Qué significa": [
+        "Error típico, en las unidades de y. Penaliza los errores grandes",
+        "Error absoluto promedio. Más robusto a valores atípicos",
+        "Proporción de la varianza de y que el modelo explica"],
+    "Modelo base (la media)": [
+        f"{root_mean_squared_error(yv_te, pred_base):.1f}",
+        f"{mean_absolute_error(yv_te, pred_base):.1f}",
+        f"{r2_score(yv_te, pred_base):.3f}"],
+    "Recta sobre el área": [
+        f"{root_mean_squared_error(yv_te, pred):.1f}",
+        f"{mean_absolute_error(yv_te, pred):.1f}",
+        f"{r2_score(yv_te, pred):.3f}"],
+})
+```
+
+::: {.callout-warning appearance="simple"}
+## RMSE no se compara entre problemas distintos
+
+Un RMSE de 300 es excelente si $y$ se mide en millones de pesos y pésimo si
+$y$ son horas de ausencia. **La métrica hereda las unidades de la variable
+objetivo.** Comparar el RMSE de dos modelos solo tiene sentido si predicen la
+misma variable, en la misma escala, sobre el mismo conjunto de prueba.
+
+Si necesitas comparar entre escalas, usa R² —que es adimensional— o el error
+porcentual, siendo consciente de que este último se rompe cuando $y$ se acerca
+a cero.
+:::
+
+### En clasificación
+
+Aquí es donde el sentido común falla. Empezamos por el modelo más tonto posible:
+
+```{python}
+#| label: baseline-clasificacion
+#| code-summary: "El modelo que no mira los datos"
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import accuracy_score, recall_score, confusion_matrix
+
+trivial = DummyClassifier(strategy="most_frequent").fit(X_train, y_train)
+pred_trivial = trivial.predict(X_test)
+
+print(f"Exactitud (accuracy): {accuracy_score(y_test, pred_trivial):.1%}")
+print(f"Sensibilidad (recall): {recall_score(y_test, pred_trivial):.1%}")
+print(f"\nEste modelo predice siempre la clase "
+      f"{trivial.predict(X_test[:1])[0]}: 'la ausencia será corta'.")
+print("No mira ninguna variable. No fue entrenado en ningún sentido real.")
+```
+
+::: {.callout-important}
+## El 91 % que no sirve para nada
+
+Un modelo que **nunca** anticipa una ausencia prolongada acierta el
+`{python} f"{accuracy_score(y_test, pred_trivial):.1%}".replace(".", ",")` de las veces. Si
+reportas esa exactitud en una reunión, sonará bien. Y el jefe de operaciones no
+podrá activar **ni un solo** reemplazo a tiempo, porque el modelo jamás dice
+que haga falta.
+
+La sensibilidad —la proporción de ausencias prolongadas que el modelo sí
+detecta— es del **0 %**. Esa es la métrica que responde a la pregunta del
+problema.
+:::
+
+Veamos ahora un modelo real, un árbol de decisión, a distintas profundidades:
+
+```{python}
+#| label: arbol-profundidades
+#| code-summary: "Un modelo de verdad, a cuatro niveles de complejidad"
+from sklearn.tree import DecisionTreeClassifier
+
+filas = []
+for profundidad in [2, 3, 5, None]:
+    arbol = DecisionTreeClassifier(max_depth=profundidad,
+                                   random_state=SEMILLA).fit(X_train, y_train)
+    p_tr = arbol.predict(X_train)
+    p_te = arbol.predict(X_test)
+    filas.append({
+        "Profundidad": "sin límite" if profundidad is None else profundidad,
+        "Exactitud (train)": accuracy_score(y_train, p_tr),
+        "Exactitud (test)": accuracy_score(y_test, p_te),
+        "Sensibilidad (test)": recall_score(y_test, p_te),
+        "Prolongadas detectadas": f"{int(recall_score(y_test, p_te) * y_test.sum())} de {y_test.sum()}",
+    })
+
+pd.DataFrame(filas).style.format({
+    "Exactitud (train)": "{:.1%}", "Exactitud (test)": "{:.1%}",
+    "Sensibilidad (test)": "{:.1%}"}).hide(axis="index")
+```
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">Leer la tabla completa, no una columna</span><span class="tiempo">10 min</span></div>
+<p>Observa la tabla anterior y responde:</p>
+<ol>
+<li>Los árboles de profundidad 2 y 3 tienen una exactitud parecida a la del modelo trivial. ¿Qué les está pasando?</li>
+<li>El árbol sin límite de profundidad tiene la <b>peor</b> exactitud en prueba y la <b>mejor</b> sensibilidad. ¿Cómo es posible?</li>
+<li>Compara exactitud en entrenamiento y en prueba del árbol sin límite. ¿Qué nombre tiene esa diferencia?</li>
+<li>Si el costo de no detectar una ausencia prolongada es mucho mayor que el de activar un reemplazo innecesario, ¿cuál de los cuatro modelos prefieres? Justifica con números de la tabla, no con intuición.</li>
+</ol></div>
+```
+
+### El modelo base no es opcional
+
+```{python}
+#| label: importancia-baseline
+#| echo: false
+pd.DataFrame({
+    "Tipo de problema": ["Regresión", "Clasificación", "Clasificación desbalanceada", "Serie temporal"],
+    "Modelo base razonable": [
+        "Predecir siempre la media (o la mediana) de y",
+        "Predecir siempre la clase mayoritaria",
+        "Además: una regla simple del negocio, si existe",
+        "Predecir el valor del período anterior"],
+    "Qué demuestra superarlo": [
+        "Que las predictoras aportan información",
+        "Que el modelo hace algo más que contar",
+        "Que el modelo detecta la clase minoritaria",
+        "Que hay estructura más allá de la persistencia"],
+})
+```
+
+Ningún resultado de modelado significa nada hasta compararlo con un modelo base.
+Un R² de 0,62 puede ser excelente o mediocre: depende de contra qué se compare.
+**En este curso, todo informe que reporte un modelo sin su línea base está
+incompleto.**
+
+```{=html}
+<div class="micro decide"><div class="micro-cab"><span class="tipo">Decide</span><span class="titulo">Dos escenarios, dos respuestas</span><span class="tiempo">10 min</span></div>
+<p>El mismo modelo de ausencias prolongadas se propone para dos usos distintos. Para cada uno, di qué métrica pondrías como criterio principal y qué error te preocupa más:</p>
+<p><b>Escenario A.</b> Operaciones lo usa para decidir si llama a un conductor de reemplazo. Un reemplazo innecesario cuesta medio día de salario. Un turno sin cubrir significa entregas incumplidas y penalidades contractuales.</p>
+<p><b>Escenario B.</b> Recursos Humanos lo usa para identificar trabajadores «propensos a ausencias largas» y citarlos a una entrevista de seguimiento.</p>
+<p>La respuesta al escenario B tiene una capa adicional que no es estadística. Identifícala: la retomaremos en el Cuadernillo 5.</p></div>
+```
+
+## El mismo flujo, en R
+
+La lógica es idéntica; cambia la sintaxis. Estas equivalencias se ejecutan en R
+con `tidymodels` y no forman parte del renderizado de este sitio.
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+from sklearn.model_selection import train_test_split
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import accuracy_score, recall_score
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.30, stratify=y, random_state=42)
+
+trivial = DummyClassifier(strategy="most_frequent").fit(X_train, y_train)
+pred = trivial.predict(X_test)
+
+accuracy_score(y_test, pred)
+recall_score(y_test, pred)
+```
+
+### R (tidymodels)
+
+```{.r}
+library(tidymodels)
+set.seed(42)
+
+particion <- initial_split(eventos, prop = 0.70,
+                           strata = ausencia_prolongada)
+entrenamiento <- training(particion)
+prueba        <- testing(particion)
+
+trivial <- null_model() |>
+  set_engine("parsnip") |>
+  set_mode("classification") |>
+  fit(ausencia_prolongada ~ ., data = entrenamiento)
+
+predicciones <- augment(trivial, prueba)
+
+accuracy(predicciones, truth = ausencia_prolongada, estimate = .pred_class)
+sens(predicciones,     truth = ausencia_prolongada, estimate = .pred_class)
+```
+
+:::
+
+La tabla completa de equivalencias está en
+[Equivalencias R ↔ Python](../recursos/equivalencias-r-python.qmd).
+
+```{=html}
+<div class="micro discute"><div class="micro-cab"><span class="tipo">Discute</span><span class="titulo">Para el encuentro virtual</span><span class="tiempo">15 min</span></div>
+<p>Un proveedor le ofrece a la empresa un sistema que «predice el ausentismo con 93 % de precisión». El gerente está entusiasmado.</p>
+<p>Prepara <b>tres preguntas</b> que le harías al proveedor antes de que la empresa firme. Deben ser preguntas que un proveedor con un producto malo no pueda responder bien, y que uno con un producto bueno responda sin problema.</p>
+<p>Pista: después de este cuadernillo ya tienes al menos cinco candidatas.</p></div>
+```
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>Aprendizaje supervisado = aprender <b>f</b> a partir de pares (X, y) conocidos, para predecir y en casos nuevos.</li>
+<li>La naturaleza de <b>y</b> define el problema: numérica continua → regresión; categórica → clasificación.</li>
+<li>La variable objetivo a menudo <b>se construye</b>; el umbral que se elija debe justificarse con el problema.</li>
+<li>Explicar y predecir son propósitos distintos, con criterios de éxito distintos. Confundirlos genera interpretaciones erróneas.</li>
+<li>El error de entrenamiento siempre se puede bajar. El único que informa es el error en datos no vistos.</li>
+<li>Sobreajuste = error bajo en entrenamiento y alto en prueba. Subajuste = error alto en ambos.</li>
+<li>Error = sesgo² + varianza + error irreducible. El compromiso se administra, no se elimina.</li>
+<li>Ninguna métrica significa nada sin un <b>modelo base</b> con el cual compararla.</li>
+<li>Con clases desbalanceadas, la exactitud engaña. Siempre. Sin excepción.</li>
+</ul>
+</div>
+```
+
+## Errores frecuentes en este tema
+
+| Error | Por qué ocurre | Cómo evitarlo |
+|---|---|---|
+| Reportar la exactitud en clases desbalanceadas | Es la métrica por defecto y suena bien | Reportar siempre la matriz de confusión y la sensibilidad de la clase minoritaria |
+| Comparar el desempeño con el error de entrenamiento | Es el número que imprime el ajuste | Reportar únicamente el desempeño en datos no vistos |
+| Partir los datos sin `stratify` en problemas desbalanceados | Se copia el ejemplo más simple de la documentación | Usar `stratify=y` siempre que y sea categórica |
+| Omitir `random_state` | «No parece importante» | Semilla fija en toda función con azar; sin ella, ninguna comparación es válida |
+| Mirar el conjunto de prueba «solo para ver» | Curiosidad | Cada mirada al test set lo contamina; se abre una sola vez, al final |
+| Presentar un modelo sin línea base | No se piensa en el punto de comparación | Todo informe incluye el desempeño del modelo trivial |
+| Confundir correlación con causalidad al interpretar | El lenguaje natural invita a ello | En predicción, hablar de *asociación*; la causalidad requiere diseño, no algoritmos |
+
+: Errores frecuentes del Cuadernillo 1 {.striped tbl-colwidths="[30,35,35]"}
+
+## Conexión con el curso
+
+::: {.callout-note appearance="simple"}
+## Hacia dónde va esto
+
+Lo aprendido en este cuadernillo es el marco conceptual de **todo el curso** y
+del **proyecto integrador**, que se presenta en este mismo Encuentro 1.
+
+En particular:
+
+- La distinción regresión/clasificación es lo primero que debe quedar definido
+  en tu proyecto.
+- La partición train/test y la semilla fija se exigen en las cuatro actividades
+  con entregable de código.
+- El modelo base es un requisito explícito de las Actividades 2, 3 y 4.
+- El análisis de sesgo-varianza reaparece, con herramientas, en el
+  [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd) (regularización) y en el
+  [Cuadernillo 5](../05-validacion/cuadernillo-05.qmd) (validación cruzada).
+
+El siguiente paso es el [Cuadernillo 2](../02-preprocesamiento/cuadernillo-02.qmd),
+que prepara directamente la **Actividad 1 · Informe exploratorio** (20 %,
+semanas 2 y 3).
+:::
+
+## Recursos adicionales
+
+- @james2023, capítulo 2 («Statistical Learning»). Es la exposición canónica de
+  todo lo visto aquí y está disponible gratuitamente en
+  [statlearning.com](https://www.statlearning.com/).
+- @shmueli2010 — el artículo que ordenó la discusión entre explicar y predecir.
+  Lectura corta y muy clarificadora.
+- [scikit-learn · Cross-validation: evaluating estimator performance](https://scikit-learn.org/stable/modules/cross_validation.html) —
+  la sección de la documentación oficial sobre partición y evaluación.
+- [scikit-learn · Underfitting vs. Overfitting](https://scikit-learn.org/stable/auto_examples/model_selection/plot_underfitting_overfitting.html) —
+  el ejemplo oficial que inspira la figura de este cuadernillo.

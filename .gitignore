@@ -1,0 +1,34 @@
+# Quarto
+/_site/
+/.quarto/
+/_freeze/
+*_files/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.python-version
+
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+
+# Temporales
+*.log
+*.tmp
+
+**/*.quarto_ipynb

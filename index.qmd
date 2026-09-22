@@ -1,0 +1,181 @@
+---
+pagetitle: "Técnicas de Análisis Estadístico de Modelos Supervisados"
+toc: false
+sidebar: false
+page-layout: full
+---
+
+::: {.hero}
+<span class="kicker">Especialización · Analítica y ciencia de datos</span>
+
+# Técnicas de Análisis Estadístico de Modelos Supervisados
+
+Aprender a predecir no es aprender a ejecutar código. Es aprender a decidir:
+qué pregunta se puede responder con estos datos, qué modelo es razonable,
+cuánto error es aceptable y qué se hace con el resultado.
+
+::: {.datos}
+<div><span class="n">3</span><span class="t">Unidades</span></div>
+<div><span class="n">5</span><span class="t">Encuentros virtuales</span></div>
+<div><span class="n">7</span><span class="t">Cuadernillos</span></div>
+<div><span class="n">2</span><span class="t">Datasets transversales</span></div>
+<div><span class="n">9</span><span class="t">Semanas</span></div>
+:::
+:::
+
+## La ruta de aprendizaje
+
+Todo el curso sigue la misma secuencia. No importa si el problema es de regresión
+o de clasificación: los ocho pasos son los mismos, y cada cuadernillo profundiza
+en un tramo de esta ruta.
+
+::: {.ruta}
+::: {.paso}
+**Comprender el problema**
+<span>¿Qué se quiere decidir? ¿Predecir o explicar?</span>
+:::
+::: {.paso}
+**Conocer los datos**
+<span>Unidad de análisis, variable objetivo, calidad.</span>
+:::
+::: {.paso}
+**Prepararlos**
+<span>Faltantes, atípicos, codificación, escalamiento.</span>
+:::
+::: {.paso}
+**Construir modelos**
+<span>Del modelo base a los candidatos.</span>
+:::
+::: {.paso}
+**Validarlos**
+<span>Train/test, validación cruzada, diagnóstico.</span>
+:::
+::: {.paso}
+**Compararlos**
+<span>Métricas coherentes con el objetivo.</span>
+:::
+::: {.paso}
+**Interpretarlos**
+<span>Coeficientes, importancia, supuestos, sesgos.</span>
+:::
+::: {.paso}
+**Comunicar la decisión**
+<span>Para públicos técnicos y no técnicos.</span>
+:::
+:::
+
+## Las tres unidades
+
+::: {.unidades}
+::: {.unidad}
+<span class="u">Unidad 1</span>
+#### Fundamentos estadísticos para el aprendizaje supervisado
+<p>Variable respuesta y predictoras, regresión frente a clasificación,
+exploración y preparación de datos, partición, sesgo, varianza,
+sobreajuste y métricas.</p>
+:::
+::: {.unidad}
+<span class="u">Unidad 2</span>
+#### Modelos supervisados: regresión y clasificación
+<p>Regresión lineal simple y múltiple, Ridge, Lasso, regresión logística,
+árboles, Random Forest, k-NN, selección de variables e importancia
+de predictores.</p>
+:::
+::: {.unidad}
+<span class="u">Unidad 3</span>
+#### Validación, diagnóstico e interpretación crítica
+<p>Validación cruzada, residuos, supuestos, multicolinealidad, matriz de
+confusión, ROC, AUC, estabilidad, sesgos en los datos, ética y
+comunicación de resultados.</p>
+:::
+:::
+
+## Cuadernillos
+
+```{=html}
+<div class="tarjetas">
+<a class="tarjeta" href="00-inicio/como-usar.html"><span class="num">Cuadernillo 0</span><h4>Cómo usar este repositorio</h4><p>Software, reproducibilidad, los datasets del curso y cómo está organizado el proyecto integrador.</p><span class="meta"><span>Antes de la semana 1</span><span>20–30 min</span></span></a>
+<a class="tarjeta" href="01-fundamentos/cuadernillo-01.html"><span class="num">Cuadernillo 1 · Encuentro 1</span><h4>Pensar estadísticamente un problema predictivo</h4><p>Qué es aprendizaje supervisado, X e y, generalización, train/test, sesgo-varianza, sobreajuste y las métricas principales.</p><span class="meta"><span>Semana 1 · Unidad 1</span><span>90–120 min</span></span></a>
+<a class="tarjeta" href="02-preprocesamiento/cuadernillo-02.html"><span class="num">Cuadernillo 2 · Encuentro 2</span><h4>Antes de modelar: conocer y preparar los datos</h4><p>Análisis exploratorio, calidad de datos, faltantes, atípicos, codificación, escalamiento, <em>data leakage</em> y pipelines.</p><span class="meta"><span>Semana 2 · Unidad 1</span><span>120–150 min</span></span></a>
+<a class="tarjeta" href="03-regresion/cuadernillo-03.html"><span class="num">Cuadernillo 3 · Encuentro 3</span><h4>De explicar a predecir: modelos de regresión</h4><p>Regresión simple y múltiple, supuestos, residuos, multicolinealidad, RMSE, MAE, R², validación cruzada, Ridge y Lasso.</p><span class="meta"><span>Semana 4 · Unidad 2</span><span>120–150 min</span></span></a>
+<a class="tarjeta" href="04-clasificacion/cuadernillo-04.html"><span class="num">Cuadernillo 4 · Encuentro 4</span><h4>Clasificar para tomar decisiones</h4><p>Regresión logística, umbral, matriz de confusión, sensibilidad, especificidad, F1, ROC, AUC, árboles, Random Forest y k-NN.</p><span class="meta"><span>Semana 5 · Unidad 2</span><span>120–150 min</span></span></a>
+<a class="tarjeta" href="05-validacion/cuadernillo-05.html"><span class="num">Cuadernillo 5 · Encuentro 5</span><h4>¿Podemos confiar en nuestro modelo?</h4><p>Validación cruzada agrupada, diagnóstico, estabilidad, importancia de variables, <em>leakage</em>, sesgos, ética y comunicación.</p><span class="meta"><span>Semana 7 · Unidad 3</span><span>120–150 min</span></span></a>
+<a class="tarjeta" href="06-proyecto/cuadernillo-06.html"><span class="num">Cuadernillo 6</span><h4>Proyecto integrador</h4><p>Mapa metodológico del problema a la comunicación, con criterios de autoevaluación y errores que cuestan puntos.</p><span class="meta"><span>Semanas 1–9</span><span>Consulta continua</span></span></a>
+</div>
+```
+
+## Los dos problemas que recorren todo el curso
+
+En lugar de cambiar de conjunto de datos en cada técnica, el curso trabaja
+con **dos problemas** de principio a fin. Así se puede ver cómo evoluciona una
+misma decisión a medida que aumentan las herramientas disponibles.
+
+| | Problema de regresión | Problema de clasificación |
+|---|---|---|
+| **Pregunta** | ¿Cuánto vale un inmueble residencial en Bogotá? | ¿Esta ausencia laboral será prolongada? |
+| **Variable objetivo** | `valor_venta` (pesos colombianos) | `ausencia_prolongada` (más de una jornada) |
+| **Observaciones** | 10 000 inmuebles | 696 eventos de ausencia, 36 empleados |
+| **Por qué este** | Datos reales y sucios: obliga a limpiar antes de modelar | Clases desbalanceadas (9 %): obliga a mirar más allá del *accuracy* |
+| **Dónde se usa** | Cuadernillos 2, 3 y 5 | Cuadernillos 1, 4 y 5 |
+
+: Datasets transversales del curso {.striped tbl-colwidths="[16,42,42]"}
+
+Los detalles, diccionarios de variables y advertencias de calidad están en
+[Datos del curso](00-inicio/datos-del-curso.qmd).
+
+## Cómo está pensado el material
+
+::: {.grid}
+
+::: {.g-col-12 .g-col-md-6}
+**Lo que encontrarás**
+
+- Una pregunta real antes de cada técnica.
+- Código corto, explicado por tramos, siempre reproducible.
+- Preguntas de interpretación después de cada resultado importante.
+- Microactividades de 5 a 15 minutos para hacer durante el encuentro.
+- Un bloque de errores frecuentes en cada cuadernillo.
+:::
+
+::: {.g-col-12 .g-col-md-6}
+**Lo que no encontrarás**
+
+- Capítulos largos de teoría antes de tocar datos.
+- Ejercicios que se resuelven copiando y ejecutando.
+- Demostraciones matemáticas que no cambian ninguna decisión.
+- Interactividad decorativa.
+- Métricas presentadas sin un objetivo que las justifique.
+:::
+
+:::
+
+::: {.callout-note appearance="simple"}
+## Sobre las actividades calificadas
+
+Los cuadernillos **no reemplazan** las actividades institucionales del aula
+virtual. Son material de apoyo a los encuentros sincrónicos y de consulta
+posterior. Cada cuadernillo indica explícitamente con qué actividad se conecta
+y qué debes saber hacer antes de intentarla, sin resolverla por ti.
+Ver el [mapa curricular](recursos/mapa-curricular.qmd) para el detalle completo.
+:::
+
+## Ruta principal: Python, con equivalencias en R
+
+El curso admite **R o Python**. El material está escrito con Python
+(`pandas` + `scikit-learn`) como ruta principal, y en los puntos donde la
+decisión metodológica es la misma pero la sintaxis cambia —partición,
+*pipeline*, regresión, regularización, logística, métricas— se incluye la
+equivalencia en R con `tidymodels`, en pestañas.
+
+La tabla completa de equivalencias está en
+[Equivalencias R ↔ Python](recursos/equivalencias-r-python.qmd).
+
+---
+
+::: {.callout-tip appearance="simple"}
+## ¿Primera vez aquí?
+
+Empieza por el [Cuadernillo 0](00-inicio/como-usar.qmd): instala el entorno,
+descarga los datos y entiende cómo se conecta cada cuadernillo con las
+actividades del curso. Son 20 minutos que ahorran varias horas después.
+:::

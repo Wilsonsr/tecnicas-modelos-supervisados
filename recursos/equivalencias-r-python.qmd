@@ -1,0 +1,325 @@
+---
+title: "Equivalencias R ↔ Python"
+subtitle: "El mismo flujo de trabajo en scikit-learn y en tidymodels"
+description: "Tabla de correspondencias entre scikit-learn y tidymodels para cada etapa del modelado supervisado."
+---
+
+El curso admite **R o Python**. Las decisiones metodológicas son idénticas; lo
+que cambia es la sintaxis. Esta página traduce cada paso.
+
+::: {.callout-note appearance="simple"}
+## Sobre el código de esta página
+
+Los bloques de Python son los que se ejecutan en los cuadernillos. Los bloques
+de R se muestran como referencia y **no se ejecutan** al construir este sitio;
+para usarlos necesitas R con los paquetes de `tidymodels` instalados.
+:::
+
+## El mapa conceptual
+
+| Concepto | scikit-learn | tidymodels |
+|---|---|---|
+| Definir el preprocesamiento | `ColumnTransformer` | `recipe()` + pasos `step_*()` |
+| Encadenar preprocesamiento y modelo | `Pipeline` | `workflow()` |
+| Especificar el modelo | La clase del estimador | `linear_reg()`, `logistic_reg()`, `rand_forest()`… |
+| Elegir la implementación | Implícita en la clase | `set_engine()` |
+| Ajustar | `.fit(X, y)` | `fit(flujo, data)` |
+| Predecir | `.predict()` / `.predict_proba()` | `predict()` / `augment()` |
+| Evaluar | Funciones de `sklearn.metrics` | Funciones de `yardstick` |
+| Remuestrear | `KFold`, `cross_val_score` | `vfold_cv()`, `fit_resamples()` |
+| Buscar hiperparámetros | `GridSearchCV` | `tune_grid()` + `select_best()` |
+
+: Correspondencia general {.striped tbl-colwidths="[28,34,38]"}
+
+## Partición de datos
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.30, stratify=y, random_state=42)
+```
+
+### R
+
+```{.r}
+library(tidymodels)
+set.seed(42)
+
+particion     <- initial_split(datos, prop = 0.70, strata = objetivo)
+entrenamiento <- training(particion)
+prueba        <- testing(particion)
+```
+
+:::
+
+## Preprocesamiento
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+
+preprocesador = ColumnTransformer([
+    ("num", Pipeline([
+        ("imputar", SimpleImputer(strategy="median")),
+        ("escalar", StandardScaler())]), cols_num),
+    ("cat", Pipeline([
+        ("imputar", SimpleImputer(strategy="most_frequent")),
+        ("codificar", OneHotEncoder(handle_unknown="ignore",
+                                    drop="first"))]), cols_cat),
+])
+```
+
+### R
+
+```{.r}
+receta <- recipe(objetivo ~ ., data = entrenamiento) |>
+  step_impute_median(all_numeric_predictors()) |>
+  step_impute_mode(all_nominal_predictors()) |>
+  step_other(barrio, threshold = 0.02) |>     # agrupa niveles raros
+  step_novel(all_nominal_predictors()) |>     # ≈ handle_unknown="ignore"
+  step_dummy(all_nominal_predictors()) |>
+  step_normalize(all_numeric_predictors()) |>
+  step_zv(all_predictors())                   # elimina varianza cero
+```
+
+:::
+
+| Operación | scikit-learn | tidymodels |
+|---|---|---|
+| Imputar con la mediana | `SimpleImputer(strategy="median")` | `step_impute_median()` |
+| Imputar con la moda | `SimpleImputer(strategy="most_frequent")` | `step_impute_mode()` |
+| Imputar con k-NN | `KNNImputer()` | `step_impute_knn()` |
+| Estandarizar | `StandardScaler()` | `step_normalize()` |
+| Escalar a [0,1] | `MinMaxScaler()` | `step_range()` |
+| Codificación one-hot | `OneHotEncoder()` | `step_dummy()` |
+| Codificación ordinal | `OrdinalEncoder()` | `step_ordinalscore()` |
+| Agrupar niveles raros | Manual, o `min_frequency=` | `step_other()` |
+| Nivel nuevo no visto | `handle_unknown="ignore"` | `step_novel()` |
+| Términos polinómicos | `PolynomialFeatures()` | `step_poly()` |
+| Interacciones | `PolynomialFeatures(interaction_only=True)` | `step_interact()` |
+| Eliminar varianza cero | Manual | `step_zv()` |
+| Transformación Box-Cox / Yeo-Johnson | `PowerTransformer()` | `step_BoxCox()` / `step_YeoJohnson()` |
+
+: Pasos de preprocesamiento {.striped tbl-colwidths="[30,36,34]"}
+
+## Modelos
+
+| Modelo | scikit-learn | tidymodels |
+|---|---|---|
+| Regresión lineal | `LinearRegression()` | `linear_reg() \|> set_engine("lm")` |
+| Ridge | `Ridge(alpha=...)` | `linear_reg(penalty=..., mixture=0) \|> set_engine("glmnet")` |
+| Lasso | `Lasso(alpha=...)` | `linear_reg(penalty=..., mixture=1) \|> set_engine("glmnet")` |
+| Elastic Net | `ElasticNet(alpha=..., l1_ratio=...)` | `linear_reg(penalty=..., mixture=...)` |
+| Regresión logística | `LogisticRegression()` | `logistic_reg() \|> set_engine("glm")` |
+| Árbol de decisión | `DecisionTreeClassifier()` | `decision_tree() \|> set_engine("rpart")` |
+| Random Forest | `RandomForestClassifier()` | `rand_forest() \|> set_engine("ranger")` |
+| k-NN | `KNeighborsClassifier(n_neighbors=k)` | `nearest_neighbor(neighbors=k) \|> set_engine("kknn")` |
+| Modelo trivial | `DummyRegressor()` / `DummyClassifier()` | `null_model()` |
+
+: Especificación de modelos {.striped tbl-colwidths="[24,34,42]"}
+
+::: {.callout-warning appearance="simple"}
+## Dos diferencias que causan confusión
+
+**`LogisticRegression` de scikit-learn regulariza por defecto.** El parámetro
+`C` es el inverso de la fuerza de penalización L2: `C=1.0` por defecto. El
+`glm()` de R **no** regulariza. Si comparas coeficientes entre ambos y no
+coinciden, esta suele ser la razón. Para desactivarla en Python:
+`LogisticRegression(penalty=None)`.
+
+**El significado de `alpha` está invertido.** En scikit-learn, `alpha` es la
+fuerza de la penalización. En `glmnet`, `alpha` es la *mezcla* entre L1 y L2
+(lo que en `tidymodels` se llama `mixture`), y la fuerza se llama `lambda`
+(en `tidymodels`, `penalty`).
+:::
+
+## Ajuste y predicción
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+flujo = Pipeline([("prep", preprocesador),
+                  ("modelo", LogisticRegression(max_iter=2000))])
+flujo.fit(X_train, y_train)
+
+clases        = flujo.predict(X_test)
+probabilidades = flujo.predict_proba(X_test)[:, 1]
+```
+
+### R
+
+```{.r}
+flujo <- workflow() |>
+  add_recipe(receta) |>
+  add_model(logistic_reg() |> set_engine("glm"))
+
+ajuste <- fit(flujo, data = entrenamiento)
+
+# augment() añade .pred_class y .pred_<clase> al data frame
+predicciones <- augment(ajuste, prueba)
+```
+
+:::
+
+## Validación cruzada
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+from sklearn.model_selection import (StratifiedKFold, StratifiedGroupKFold,
+                                     cross_val_score)
+
+cv = StratifiedKFold(5, shuffle=True, random_state=42)
+puntajes = cross_val_score(flujo, X_train, y_train, cv=cv, scoring="roc_auc")
+
+# Con estructura de grupos
+cv_grupo = StratifiedGroupKFold(5, shuffle=True, random_state=42)
+puntajes_g = cross_val_score(flujo, X, y, cv=cv_grupo,
+                             groups=id_individuo, scoring="roc_auc")
+```
+
+### R
+
+```{.r}
+set.seed(42)
+pliegues <- vfold_cv(entrenamiento, v = 5, strata = objetivo)
+
+resultados <- fit_resamples(
+  flujo, resamples = pliegues,
+  metrics = metric_set(roc_auc, accuracy, sens, spec))
+
+collect_metrics(resultados)
+
+# Con estructura de grupos
+pliegues_g <- group_vfold_cv(datos, group = id_individuo, v = 5)
+```
+
+:::
+
+## Búsqueda de hiperparámetros
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+from sklearn.model_selection import GridSearchCV
+import numpy as np
+
+rejilla = {"modelo__alpha": np.logspace(-2, 4, 40)}
+
+busqueda = GridSearchCV(flujo, rejilla, cv=cv,
+                        scoring="neg_root_mean_squared_error", n_jobs=-1)
+busqueda.fit(X_train, y_train)
+
+busqueda.best_params_
+mejor_modelo = busqueda.best_estimator_
+```
+
+### R
+
+```{.r}
+modelo <- linear_reg(penalty = tune(), mixture = 0) |>
+  set_engine("glmnet")
+
+flujo   <- workflow() |> add_recipe(receta) |> add_model(modelo)
+rejilla <- grid_regular(penalty(range = c(-2, 4)), levels = 40)
+
+ajuste <- tune_grid(flujo, resamples = pliegues, grid = rejilla,
+                    metrics = metric_set(rmse, mae, rsq))
+
+mejor <- select_best(ajuste, metric = "rmse")
+flujo_final <- finalize_workflow(flujo, mejor) |>
+  last_fit(particion)
+```
+
+:::
+
+## Métricas
+
+| Métrica | scikit-learn | yardstick (R) |
+|---|---|---|
+| RMSE | `root_mean_squared_error()` | `rmse()` |
+| MAE | `mean_absolute_error()` | `mae()` |
+| R² | `r2_score()` | `rsq()` |
+| Exactitud | `accuracy_score()` | `accuracy()` |
+| Sensibilidad | `recall_score()` | `sens()` / `recall()` |
+| Especificidad | `recall_score(pos_label=0)` | `spec()` |
+| Precisión | `precision_score()` | `precision()` |
+| F1 | `f1_score()` | `f_meas()` |
+| AUC | `roc_auc_score()` | `roc_auc()` |
+| Matriz de confusión | `confusion_matrix()` | `conf_mat()` |
+| Curva ROC | `roc_curve()` | `roc_curve()` + `autoplot()` |
+| Curva PR | `precision_recall_curve()` | `pr_curve()` + `autoplot()` |
+
+: Métricas {.striped tbl-colwidths="[24,38,38]"}
+
+::: {.callout-warning appearance="simple"}
+## `event_level` en yardstick
+
+En `yardstick`, el nivel considerado «evento positivo» es, por defecto, el
+**primero** del factor. Si tu variable objetivo tiene niveles `c("0", "1")` y el
+evento de interés es `"1"`, debes pasar `event_level = "second"` o reordenar el
+factor. Olvidarlo produce métricas invertidas que parecen desastrosas sin
+motivo.
+:::
+
+## Diagnóstico de regresión
+
+| Diagnóstico | Python | R |
+|---|---|---|
+| Resumen con valores p | `statsmodels`: `sm.OLS(y, X).fit().summary()` | `summary(lm(...))` |
+| Gráficos de diagnóstico | Manual con `matplotlib` | `plot(modelo_lm)` |
+| VIF | `statsmodels.stats.outliers_influence.variance_inflation_factor` | `car::vif()` |
+| Breusch-Pagan | `statsmodels.stats.diagnostic.het_breuschpagan` | `lmtest::bptest()` |
+| Distancia de Cook | `modelo.get_influence().cooks_distance` | `cooks.distance()` |
+| Q-Q de residuos | `sm.qqplot()` | `qqnorm()` / `plot(modelo, which = 2)` |
+
+: Diagnóstico {.striped tbl-colwidths="[26,42,32]"}
+
+::: {.callout-note appearance="simple"}
+## En Python, dos bibliotecas para dos propósitos
+
+`scikit-learn` está diseñado para **predecir**: su API gira en torno a `fit` y
+`predict`, y no entrega valores p ni errores estándar.
+
+`statsmodels` está diseñado para **explicar**: entrega la tabla de inferencia
+completa, los contrastes de supuestos y las medidas de influencia.
+
+En R, `lm()` y `glm()` cubren ambos propósitos, y `tidymodels` los envuelve para
+el flujo predictivo. No es que R sea más completo: es que en Python la división
+del trabajo es explícita.
+:::
+
+## Reproducibilidad
+
+| | Python | R |
+|---|---|---|
+| Semilla global | `np.random.seed(42)` | `set.seed(42)` |
+| Semilla por función | `random_state=42` en cada función | `set.seed()` antes de cada bloque aleatorio |
+| Entorno | `requirements.txt`, `venv`, `conda` | `renv::snapshot()` |
+| Informe reproducible | Quarto con `jupyter: python3` | Quarto o R Markdown con `knitr` |
+
+: Reproducibilidad {.striped tbl-colwidths="[24,38,38]"}
+
+## Recursos oficiales
+
+- [scikit-learn · User Guide](https://scikit-learn.org/stable/user_guide.html)
+- [tidymodels.org](https://www.tidymodels.org/) — tutoriales oficiales
+- @kuhn2022 — *Tidy Modeling with R*, libro abierto y de referencia
+- @james2023 y @james2021r — el mismo texto en versiones para Python y para R
