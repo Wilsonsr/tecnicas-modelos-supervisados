@@ -56,6 +56,7 @@ tecnicas-modelos-supervisados/
 ├── 05-validacion/           # Cuadernillo 5
 ├── 06-proyecto/             # Cuadernillo 6
 │
+├── cuadernos/               # los .ipynb generados desde los .qmd
 ├── recursos/                # mapa curricular, errores frecuentes, glosario,
 │                            # equivalencias R↔Python, uso de IA
 ├── referencias/             # bibliografía y referencias.bib
@@ -63,7 +64,7 @@ tecnicas-modelos-supervisados/
 ├── datos/
 │   ├── crudos/              # los dos datasets, sin depurar
 │   └── procesados/          # generados por el Cuadernillo 2
-├── codigo/                  # utilidades y equivalencias en R
+├── codigo/                  # utilidades, generador de cuadernos, código R
 ├── estilos/                 # tema SCSS y CSS de componentes
 ├── imagenes/
 └── .github/workflows/       # publicación automática
@@ -96,12 +97,37 @@ quarto render                    # construir el sitio completo en _site/
 quarto render 03-regresion/cuadernillo-03.qmd
 ```
 
+### Regenerar los cuadernos Jupyter
+
+Los `.qmd` son la fuente de verdad. Los `.ipynb` de `cuadernos/` se generan a
+partir de ellos, así que **no se editan a mano**: se regeneran.
+
+```bash
+python codigo/generar_cuadernos.py
+```
+
+El flujo de publicación lo hace automáticamente en cada `push`, y avisa si los
+cuadernos versionados no coinciden con los cuadernillos.
+
 ### Publicar
 
 El sitio se publica automáticamente en GitHub Pages con cada `push` a `main`,
 mediante el flujo de trabajo `.github/workflows/publicar.yml`.
 
 Para activarlo la primera vez: **Settings → Pages → Source: GitHub Actions**.
+
+## Las dos versiones de cada cuadernillo
+
+Cada cuadernillo se publica de dos formas, generadas del mismo `.qmd`:
+
+| | Sitio web | Cuaderno `.ipynb` |
+|---|---|---|
+| Para | Leer y consultar | Ejecutar y modificar |
+| Dónde | GitHub Pages | Jupyter, VS Code o Google Colab |
+| Acceso | El sitio | Botones de descarga y Colab en cada cuadernillo |
+
+La primera celda de cada cuaderno descarga los datos del curso si no los
+encuentra, de modo que funcione en Colab sin configuración previa.
 
 ## Convenciones del material
 

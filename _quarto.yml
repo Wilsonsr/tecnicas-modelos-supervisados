@@ -1,6 +1,12 @@
 project:
   type: website
   output-dir: _site
+  # Los cuadernos .ipynb y los datos se copian al sitio para que se puedan
+  # descargar desde cada cuadernillo. Los genera codigo/generar_cuadernos.py.
+  resources:
+    - "cuadernos/*.ipynb"
+    - "datos/crudos/*.csv"
+    - "datos/procesados/*.csv"
   render:
     - "*.qmd"
     - "00-inicio/*.qmd"

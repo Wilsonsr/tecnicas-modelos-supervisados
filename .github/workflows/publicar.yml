@@ -45,8 +45,25 @@ jobs:
           python -c "import sys; print('Python', sys.version)"
           pip list --format=columns | grep -Ei 'pandas|numpy|scikit-learn|matplotlib|seaborn|plotly|statsmodels'
 
+      # Los .qmd son la fuente de verdad: los cuadernos Jupyter se regeneran
+      # en cada publicación, de modo que no puedan quedar desfasados.
+      - name: Generar los cuadernos Jupyter
+        run: python codigo/generar_cuadernos.py
+
       - name: Renderizar el sitio
         run: quarto render
+
+      # Si los cuadernos regenerados difieren de los versionados, se avisa.
+      # No detiene la publicación: solo recuerda confirmar el cambio.
+      - name: Comprobar que los cuadernos están al día
+        run: |
+          if ! git diff --quiet -- cuadernos/; then
+            echo "::warning::Los cuadernos del repositorio no coinciden con los .qmd."
+            echo "Ejecuta 'python codigo/generar_cuadernos.py' y confirma el resultado."
+            git diff --stat -- cuadernos/
+          else
+            echo "Los cuadernos están sincronizados con los cuadernillos."
+          fi
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5

@@ -393,3 +393,43 @@ figure figcaption { font-size: 0.83rem; color: var(--c-texto-suave); }
   .hero { padding: 1.5rem 1.2rem; }
   .ficha-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 }
+
+/* ── Barra de acciones del cuadernillo (descarga y Colab) ─────────────── */
+
+.acciones {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: -1rem 0 2rem 0;
+}
+
+.acciones a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  padding: 0.38rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--c-borde);
+  background: var(--c-fondo);
+  color: var(--c-texto) !important;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.acciones a:hover {
+  border-color: var(--c-teal);
+  background: var(--c-teal-suave);
+}
+
+.acciones a svg { width: 15px; height: 15px; flex: none; }
+
+.acciones .nota {
+  font-size: 0.78rem;
+  color: var(--c-texto-suave);
+  margin-left: 0.2rem;
+}
+
+body.quarto-dark .acciones a { background: var(--c-panel); }

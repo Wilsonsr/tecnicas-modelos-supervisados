@@ -17,6 +17,10 @@ description: "Punto de partida: qué encontrarás, cómo está organizado el mat
 </div>
 ```
 
+```{=html}
+<div class="acciones"><a href="../cuadernos/cuadernillo-00-como-usar.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-00-como-usar.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a></div>
+```
+
 ## Para qué sirve este sitio
 
 Este repositorio **no es el curso**. El curso vive en el aula virtual, con sus
@@ -113,6 +117,49 @@ Aparecen intercaladas en el texto y tienen un tipo, que indica qué se te pide:
 <div class="micro reto"><div class="micro-cab"><span class="tipo">Reto</span><span class="titulo">Problema corto</span><span class="tiempo">15 min</span></div>
 <p>Un poco de programación o de cálculo. Difícil de resolver sin haber entendido lo anterior.</p></div>
 ```
+
+## Dos formas de usar cada cuadernillo
+
+Cada cuadernillo existe en dos versiones, generadas del mismo archivo fuente y
+por tanto siempre idénticas en contenido:
+
+| | **Sitio web** | **Cuaderno Jupyter (.ipynb)** |
+|---|---|---|
+| **Para qué sirve** | Leer, consultar, repasar | Ejecutar, modificar, experimentar |
+| **Dónde** | Aquí mismo, en cualquier dispositivo | Jupyter, VS Code o Google Colab |
+| **Gráficos interactivos** | Sí | Sí, al ejecutar |
+| **Puedes cambiar el código** | No | Sí — y debes hacerlo |
+| **Cómo se obtiene** | Ya lo estás viendo | Los dos botones bajo la portada |
+
+: Las dos versiones de cada cuadernillo {.striped tbl-colwidths="[24,38,38]"}
+
+Bajo la ficha de portada de cada cuadernillo hay dos botones:
+
+- **Descargar el cuaderno (.ipynb)** — para abrirlo en tu Jupyter o en VS Code.
+- **Abrir en Google Colab** — se ejecuta en el navegador, sin instalar nada.
+
+::: {.callout-tip appearance="simple"}
+## Los cuadernos traen sus propios datos
+
+La primera celda de cada cuaderno comprueba si los datos del curso están
+disponibles y, si no, los descarga. Eso significa que **en Colab funciona sin
+configurar nada**: abres, ejecutas y empiezas.
+
+Si trabajas con el repositorio clonado, detecta que los datos ya están y no
+descarga nada.
+:::
+
+::: {.callout-warning appearance="simple"}
+## Lee en el sitio, trabaja en el cuaderno
+
+El cuaderno conserva todo el texto, pero el formato del sitio —callouts con
+color, pestañas R/Python, tablas con escala de color— se aplana al convertirlo.
+Y los valores que el sitio calcula dentro del texto corrido aparecen en el
+cuaderno como la expresión que los produce.
+
+La combinación que mejor funciona: **el sitio abierto en una pestaña para
+leer, el cuaderno en otra para ejecutar.**
+:::
 
 ::: {.callout-important appearance="simple"}
 ## Las microactividades no son calificadas
