@@ -1,7 +1,9 @@
 ---
-title: "Cuadernillo 4 · Clasificar para tomar decisiones"
-subtitle: "Encuentro virtual 4 — Probabilidad, umbral, matriz de confusión, ROC y comparación de clasificadores"
+title: "Cuadernillo 4a · Clasificar para tomar decisiones"
+subtitle: "Encuentro virtual 4 · primera parte — Probabilidad, umbral, matriz de confusión, ROC y comparación de clasificadores"
 description: "Regresión logística, umbral de decisión, matriz de confusión, sensibilidad, especificidad, precisión, F1, ROC, AUC, árboles, Random Forest y k-NN."
+aliases:
+  - cuadernillo-04.html
 ---
 
 ```{=html}
@@ -15,12 +17,12 @@ description: "Regresión logística, umbral de decisión, matriz de confusión, 
 <div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 3 · Clasificación y desempeño (20 %)</span></div>
 </div>
 <hr>
-<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (train/test, modelo base), <a href="../02-preprocesamiento/cuadernillo-02.html">Cuadernillo 2</a> (<code>Pipeline</code>, fuga) y <a href="../03-regresion/cuadernillo-03.html">Cuadernillo 3</a> (validación cruzada, regularización).</div>
+<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (train/test, modelo base), <a href="../02-preprocesamiento/cuadernillo-02.html">Cuadernillo 2</a> (<code>Pipeline</code>, fuga) y <a href="../03-regresion/cuadernillo-03a.html">Cuadernillo 3</a> (validación cruzada, regularización).</div>
 </div>
 ```
 
 ```{=html}
-<div class="acciones"><a href="../cuadernos/cuadernillo-04-clasificacion.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-04-clasificacion.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a></div>
+<div class="acciones"><a href="../cuadernos/cuadernillo-04a-clasificacion.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-04a-clasificacion.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a></div>
 ```
 
 ## La pregunta detonante

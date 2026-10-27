@@ -181,7 +181,7 @@ Solo el **9 %** de las ausencias son prolongadas. Un modelo que prediga
 de los casos. Y será completamente inútil.
 
 Este es el motivo por el que este conjunto de datos está en el curso. El
-[Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd) está construido
+[Cuadernillo 4](../04-clasificacion/cuadernillo-04a.qmd) está construido
 alrededor de esa trampa.
 :::
 

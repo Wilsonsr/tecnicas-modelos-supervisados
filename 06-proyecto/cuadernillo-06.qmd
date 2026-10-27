@@ -364,8 +364,8 @@ decisiones.
 |---|---|---|---|
 | 1 | Problema y datos (Etapas 1–2) | [1](../01-fundamentos/cuadernillo-01.qmd) | — |
 | 2–3 | Exploración y preparación (Etapas 3–4) | [2](../02-preprocesamiento/cuadernillo-02.qmd) | **Actividad 1** (20 %) |
-| 4–5 | Modelo base y regresión (Etapas 5–6) | [3](../03-regresion/cuadernillo-03.qmd) | **Actividad 2** (20 %) |
-| 6 | Clasificación y comparación (Etapa 6) | [4](../04-clasificacion/cuadernillo-04.qmd) | **Actividad 3** (20 %) |
+| 4–5 | Modelo base y regresión (Etapas 5–6) | [3](../03-regresion/cuadernillo-03a.qmd) | **Actividad 2** (20 %) |
+| 6 | Clasificación y comparación (Etapa 6) | [4](../04-clasificacion/cuadernillo-04a.qmd) | **Actividad 3** (20 %) |
 | 7–8 | Validación, interpretación, comunicación (Etapas 7–11) | [5](../05-validacion/cuadernillo-05.qmd) | **Actividad 4** (20 %) |
 | 9 | Cierre y evaluación final | Todos | **Actividad 5** (20 %) |
 

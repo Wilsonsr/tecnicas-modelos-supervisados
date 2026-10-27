@@ -15,7 +15,7 @@ description: "Validación cruzada agrupada, diagnóstico, estabilidad, importanc
 <div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 4 · Proyecto integrador y video (20 %)</span></div>
 </div>
 <hr>
-<div class="previos"><strong>Conocimientos previos:</strong> Cuadernillos <a href="../01-fundamentos/cuadernillo-01.html">1</a> a <a href="../04-clasificacion/cuadernillo-04.html">4</a>. Este cuadernillo revisa críticamente los resultados obtenidos en ellos.</div>
+<div class="previos"><strong>Conocimientos previos:</strong> Cuadernillos <a href="../01-fundamentos/cuadernillo-01.html">1</a> a <a href="../04-clasificacion/cuadernillo-04a.html">4</a>. Este cuadernillo revisa críticamente los resultados obtenidos en ellos.</div>
 </div>
 ```
 

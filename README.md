@@ -94,7 +94,7 @@ quarto render                    # construir el sitio completo en _site/
 ### Renderizar un solo cuadernillo
 
 ```bash
-quarto render 03-regresion/cuadernillo-03.qmd
+quarto render 03-regresion/cuadernillo-03a.qmd
 ```
 
 ### Regenerar los cuadernos Jupyter

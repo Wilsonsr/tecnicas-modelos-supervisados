@@ -281,7 +281,7 @@ a **elegir** entre modelos, necesitas un tercero:
 En la práctica, el conjunto de validación se suele reemplazar por **validación
 cruzada** sobre los datos de entrenamiento, que aprovecha mejor las
 observaciones disponibles. Es el tema del
-[Cuadernillo 3](../03-regresion/cuadernillo-03.qmd) y del
+[Cuadernillo 3](../03-regresion/cuadernillo-03a.qmd) y del
 [Cuadernillo 5](../05-validacion/cuadernillo-05.qmd).
 
 ```{=html}
@@ -669,7 +669,7 @@ En particular:
   con entregable de código.
 - El modelo base es un requisito explícito de las Actividades 2, 3 y 4.
 - El análisis de sesgo-varianza reaparece, con herramientas, en el
-  [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd) (regularización) y en el
+  [Cuadernillo 3](../03-regresion/cuadernillo-03a.qmd) (regularización) y en el
   [Cuadernillo 5](../05-validacion/cuadernillo-05.qmd) (validación cruzada).
 
 El siguiente paso es el [Cuadernillo 2](../02-preprocesamiento/cuadernillo-02.qmd),

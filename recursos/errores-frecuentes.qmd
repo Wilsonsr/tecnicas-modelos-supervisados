@@ -28,7 +28,7 @@ clase positiva acierta el 91 %. Y no detecta absolutamente nada.
 
 **Corrección.** Reportar siempre la matriz de confusión completa, la
 sensibilidad de la clase minoritaria y el desempeño del modelo trivial como
-referencia. → [Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd)
+referencia. → [Cuadernillo 4](../04-clasificacion/cuadernillo-04a.qmd)
 :::
 
 ::: {.callout-important}
@@ -56,8 +56,8 @@ real.
 
 **Corrección.** Hiperparámetros y umbrales se eligen por validación cruzada
 sobre entrenamiento. El conjunto de prueba se abre **una vez**, al final.
-→ [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd),
-[Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd)
+→ [Cuadernillo 3](../03-regresion/cuadernillo-03a.qmd),
+[Cuadernillo 4](../04-clasificacion/cuadernillo-04a.qmd)
 :::
 
 ::: {.callout-important}

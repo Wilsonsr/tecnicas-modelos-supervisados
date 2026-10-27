@@ -1,7 +1,9 @@
 ---
-title: "Cuadernillo 3 · De explicar a predecir: modelos de regresión"
-subtitle: "Encuentro virtual 3 — Interpretación, supuestos, validación cruzada y regularización"
+title: "Cuadernillo 3a · De explicar a predecir: modelos de regresión"
+subtitle: "Encuentro virtual 3 · primera parte — Interpretación, supuestos, validación cruzada y regularización"
 description: "Regresión lineal simple y múltiple, interpretación de coeficientes, residuos, multicolinealidad, RMSE, MAE, R², validación cruzada, Ridge y Lasso."
+aliases:
+  - cuadernillo-03.html
 ---
 
 ```{=html}
@@ -20,7 +22,7 @@ description: "Regresión lineal simple y múltiple, interpretación de coeficien
 ```
 
 ```{=html}
-<div class="acciones"><a href="../cuadernos/cuadernillo-03-regresion.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-03-regresion.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a></div>
+<div class="acciones"><a href="../cuadernos/cuadernillo-03a-regresion.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-03a-regresion.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a></div>
 ```
 
 ## La pregunta detonante
@@ -896,7 +898,7 @@ de por qué la regularización aportó —o no— en tu caso. **Reportar que no 
 con evidencia, es una respuesta correcta.**
 :::
 
-El siguiente paso es el [Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd),
+El siguiente paso es el [Cuadernillo 4](../04-clasificacion/cuadernillo-04a.qmd),
 donde la variable objetivo deja de ser un número.
 
 ## Recursos adicionales
