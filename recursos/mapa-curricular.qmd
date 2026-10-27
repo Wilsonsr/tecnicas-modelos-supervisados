@@ -237,8 +237,8 @@ plt.show()
 | Actividad | Semanas | Peso | Producto | Cuadernillo que prepara |
 |---|---|---|---|---|
 | 1 · Estadística descriptiva y limpieza | 2–3 | 20 % | Informe exploratorio | [2](../02-preprocesamiento/cuadernillo-02.qmd) |
-| 2 · Regresión lineal y regularizada | 4–5 | 20 % | Reporte con supuestos, coeficientes y validación cruzada | [3](../03-regresion/cuadernillo-03a.qmd) |
-| 3 · Clasificación y comparación | 6 | 20 % | Informe de métricas y desempeño | [4](../04-clasificacion/cuadernillo-04a.qmd) |
+| 2 · Regresión lineal y regularizada | 4–5 | 20 % | Reporte con supuestos, coeficientes y validación cruzada | [3](../03-regresion/cuadernillo-03.qmd) |
+| 3 · Clasificación y comparación | 6 | 20 % | Informe de métricas y desempeño | [4](../04-clasificacion/cuadernillo-04.qmd) |
 | 4 · Proyecto integrador | 7–8 | 20 % | Video de socialización | [5](../05-validacion/cuadernillo-05.qmd) y [6](../06-proyecto/cuadernillo-06.qmd) |
 | 5 · Evaluación final | 9 | 20 % | Evaluación | Todos |
 

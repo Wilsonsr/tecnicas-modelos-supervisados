@@ -1,9 +1,7 @@
 ---
-title: "Cuadernillo 3b · Torneo de modelos de regresión"
-subtitle: "Encuentro virtual 3 · segunda parte — Ocho competidores, un conjunto de prueba y un error de bulto escondido en los datos"
+title: "Torneo de modelos de regresión"
+subtitle: "Encuentro virtual 3 (segunda parte) — Ocho competidores, un conjunto de prueba y un error de bulto escondido en los datos"
 description: "Partición, métricas de error (MAE, MSE, RMSE, R²) y comparación sistemática de modelos de regresión: lineal, Ridge, k-NN, árbol, Random Forest y Gradient Boosting."
-aliases:
-  - torneo-de-modelos.html
 ---
 
 ```{=html}
@@ -17,7 +15,7 @@ aliases:
 <div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 2 · Regresión lineal y regularizada (20 %)</span></div>
 </div>
 <hr>
-<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (train/test, modelo base, sobreajuste) y los datos de vivienda del <a href="../02-preprocesamiento/cuadernillo-02.html">Cuadernillo 2</a>. Se puede seguir sin haber visto la parte estadística del <a href="cuadernillo-03a.html">Cuadernillo 3</a>, aunque conviene.</div>
+<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (train/test, modelo base, sobreajuste) y los datos de vivienda del <a href="../02-preprocesamiento/cuadernillo-02.html">Cuadernillo 2</a>. Se puede seguir sin haber visto la parte estadística del <a href="cuadernillo-03.html">Cuadernillo 3</a>, aunque conviene.</div>
 </div>
 ```
 
@@ -738,7 +736,7 @@ reemplaza. Lo que aporta:
   honesta resta en lugar de sumar.**
 :::
 
-El siguiente paso es el [Cuadernillo 4](../04-clasificacion/cuadernillo-04a.qmd),
+El siguiente paso es el [Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd),
 donde el mismo torneo se repite con la variable objetivo convertida en
 categoría, y donde el marcador cambia por completo.
 

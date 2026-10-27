@@ -399,7 +399,7 @@ Trabajar con $\log(y)$ tiene tres consecuencias que hay que conocer:
     que devolver la predicción con $e^{\hat{y}}$, y ese paso introduce un sesgo
     conocido que debe corregirse.
 
-En el [Cuadernillo 3](../03-regresion/cuadernillo-03a.qmd) modelamos en la escala
+En el [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd) modelamos en la escala
 original para no arrastrar esa complicación, y se muestra explícitamente lo que
 cuesta esa decisión.
 :::
@@ -877,7 +877,7 @@ argumentados.
 :::
 :::
 
-El siguiente paso es el [Cuadernillo 3](../03-regresion/cuadernillo-03a.qmd),
+El siguiente paso es el [Cuadernillo 3](../03-regresion/cuadernillo-03.qmd),
 que usa el archivo `vivienda_modelado.csv` que acabas de generar.
 
 ## Recursos adicionales
