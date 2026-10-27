@@ -52,6 +52,8 @@ website:
             href: 02-preprocesamiento/cuadernillo-02.qmd
           - text: "3 · De explicar a predecir: modelos de regresión"
             href: 03-regresion/cuadernillo-03.qmd
+          - text: "3b · Torneo de modelos de regresión"
+            href: 03-regresion/torneo-de-modelos.qmd
           - text: "4 · Clasificar para tomar decisiones"
             href: 04-clasificacion/cuadernillo-04.qmd
           - text: "5 · ¿Podemos confiar en nuestro modelo?"
@@ -95,6 +97,7 @@ website:
       - section: "Unidad 2 · Modelos supervisados"
         contents:
           - 03-regresion/cuadernillo-03.qmd
+          - 03-regresion/torneo-de-modelos.qmd
           - 04-clasificacion/cuadernillo-04.qmd
       - section: "Unidad 3 · Validación y diagnóstico"
         contents:

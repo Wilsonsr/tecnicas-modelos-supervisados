@@ -1,0 +1,753 @@
+---
+title: "Torneo de modelos de regresión"
+subtitle: "Encuentro virtual 3 (segunda parte) — Ocho competidores, un conjunto de prueba y un error de bulto escondido en los datos"
+description: "Partición, métricas de error (MAE, MSE, RMSE, R²) y comparación sistemática de modelos de regresión: lineal, Ridge, k-NN, árbol, Random Forest y Gradient Boosting."
+---
+
+```{=html}
+<div class="ficha">
+<div class="ficha-grid">
+<div class="ficha-item"><span class="et">Encuentro</span><span class="vl">Virtual 3 · segunda parte</span></div>
+<div class="ficha-item"><span class="et">Semana</span><span class="vl">4</span></div>
+<div class="ficha-item"><span class="et">Unidad</span><span class="vl">2 · Modelos supervisados</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">100–120 minutos</span></div>
+<div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span><span class="ra ra-15">RA15</span></span></div>
+<div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 2 · Regresión lineal y regularizada (20 %)</span></div>
+</div>
+<hr>
+<div class="previos"><strong>Conocimientos previos:</strong> <a href="../01-fundamentos/cuadernillo-01.html">Cuadernillo 1</a> (train/test, modelo base, sobreajuste) y los datos de vivienda del <a href="../02-preprocesamiento/cuadernillo-02.html">Cuadernillo 2</a>. Se puede seguir sin haber visto la parte estadística del <a href="cuadernillo-03.html">Cuadernillo 3</a>, aunque conviene.</div>
+</div>
+```
+
+```{=html}
+<div class="acciones"><a href="../cuadernos/cuadernillo-03b-torneo.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-03b-torneo.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a><span class="nota">La ejecución completa toma menos de un minuto.</span></div>
+```
+
+## La pregunta detonante
+
+> El Cuadernillo 3 construyó una regresión lineal para avaluar vivienda. Alguien
+> en el comité pregunta lo obvio:
+>
+> *«¿Y no habrá un modelo mejor? He oído hablar de Random Forest.»*
+>
+> **La pregunta es razonable. El problema es que «mejor» no significa nada
+> hasta que alguien define cómo se mide.**
+
+Así que vamos a medirlo. Ocho modelos, las mismas reglas para todos, un único
+conjunto de prueba y un marcador público.
+
+Lo que ocurre en la primera ronda no es lo que esperas. Y lo que lo explica
+estaba escondido en los datos desde el principio.
+
+## Las reglas del torneo
+
+Un torneo sin reglas no decide nada. Estas cuatro son innegociables, y son las
+mismas que se te exigen en las actividades del curso:
+
+| Regla | Por qué |
+|---|---|
+| **1. Una sola partición, idéntica para todos** | Si cada modelo se evalúa con datos distintos, la comparación no existe |
+| **2. Misma semilla** (`random_state=42`) | Sin ella, repetir el torneo da otro ganador y no sabrías si la mejora es real |
+| **3. Mismo preprocesamiento**, dentro del `Pipeline` | Un modelo con mejor preparación de datos gana por la preparación, no por el modelo |
+| **4. El modelo base compite** | Si un competidor no le gana a predecir siempre la media, no merece existir |
+
+: Las cuatro reglas {.striped tbl-colwidths="[38,62]"}
+
+::: {.callout-important appearance="simple"}
+## La regla que más se incumple
+
+La tercera. Es muy común comparar «mi Random Forest» contra «la regresión
+lineal del compañero» cuando cada uno imputó, escaló y codificó a su manera.
+Eso no compara modelos: compara flujos de trabajo completos.
+
+Aquí todos los competidores reciben **exactamente la misma matriz de datos**.
+La única diferencia permitida es el escalamiento, porque los modelos de
+distancia lo necesitan y los de árboles no lo usan.
+:::
+
+```{python}
+#| label: setup
+#| code-summary: "Preparación: datos, reglas y preprocesamiento común"
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split, KFold, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import (mean_absolute_error, mean_squared_error,
+                             root_mean_squared_error, r2_score)
+
+SEMILLA = 42
+np.random.seed(SEMILLA)
+plt.rcParams.update({"figure.figsize": (7, 4.2), "axes.grid": True,
+                     "grid.alpha": 0.25, "axes.spines.top": False,
+                     "axes.spines.right": False, "font.size": 10})
+
+vivienda = pd.read_csv("../datos/procesados/vivienda_modelado.csv")
+vivienda["precio_mm"] = vivienda.valor_venta / 1e6      # millones de pesos
+vivienda["zona"] = vivienda.zona.fillna("SIN DATO")
+
+NUMERICAS = ["area_m2", "n_cuartos", "n_banos", "n_garajes"]
+CATEGORICAS = ["tipo_inmueble", "zona"]
+
+def preprocesador(escalar):
+    """El mismo para todos. Solo cambia si se estandariza o no."""
+    pasos_num = [("imputar", SimpleImputer(strategy="median"))]
+    if escalar:
+        pasos_num.append(("escalar", StandardScaler()))
+    return ColumnTransformer([
+        ("num", Pipeline(pasos_num), NUMERICAS),
+        ("cat", Pipeline([
+            ("imputar", SimpleImputer(strategy="most_frequent")),
+            ("codificar", OneHotEncoder(handle_unknown="ignore", drop="first",
+                                        sparse_output=False))]), CATEGORICAS),
+    ])
+
+print(f"{len(vivienda):,} registros · objetivo: precio en millones de pesos")
+print(f"Predictoras: {len(NUMERICAS)} numéricas + {len(CATEGORICAS)} categóricas")
+```
+
+## El marcador: cuatro formas de contar el error
+
+Antes de competir hay que saber qué se cuenta. Las cuatro métricas miden lo
+mismo —la distancia entre lo predicho y lo observado— pero no de la misma
+manera.
+
+$$
+\text{MAE} = \frac{1}{n}\sum_{i=1}^{n}\left|y_i - \hat{y}_i\right|
+\qquad
+\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2
+$$
+
+$$
+\text{RMSE} = \sqrt{\text{MSE}}
+\qquad
+R^2 = 1 - \frac{\sum (y_i - \hat{y}_i)^2}{\sum (y_i - \bar{y})^2}
+$$
+
+La diferencia se ve mejor con números pequeños que con fórmulas. Dos modelos
+que se equivocan **lo mismo en total**, repartido de forma distinta:
+
+```{python}
+#| label: metricas-ejemplo
+#| code-summary: "Dos modelos, el mismo error total, distinto reparto"
+real = np.array([100, 200, 300, 400, 500], dtype=float)
+
+# Modelo A: se equivoca 40 en cada inmueble.
+pred_a = real + np.array([40, -40, 40, -40, 40], dtype=float)
+
+# Modelo B: acierta en cuatro y se equivoca 200 en uno.
+pred_b = real + np.array([0, 0, 0, 0, 200], dtype=float)
+
+comparacion = pd.DataFrame({
+    "Métrica": ["Error absoluto total", "MAE", "MSE", "RMSE"],
+    "Modelo A — reparte el error": [
+        np.abs(pred_a - real).sum(),
+        mean_absolute_error(real, pred_a),
+        mean_squared_error(real, pred_a),
+        root_mean_squared_error(real, pred_a)],
+    "Modelo B — concentra el error": [
+        np.abs(pred_b - real).sum(),
+        mean_absolute_error(real, pred_b),
+        mean_squared_error(real, pred_b),
+        root_mean_squared_error(real, pred_b)],
+})
+comparacion.style.format({"Modelo A — reparte el error": "{:,.0f}",
+                          "Modelo B — concentra el error": "{:,.0f}"}).hide(axis="index")
+```
+
+::: {.callout-tip}
+## Lo que acabas de ver
+
+Los dos modelos se equivocan **200 en total** y tienen el **mismo MAE**. Pero el
+RMSE de B casi duplica el de A, porque elevar al cuadrado castiga el error
+grande mucho más que varios pequeños.
+
+Para elegir entre métricas, pregúntate qué duele más en tu problema:
+
+- **MAE** — «¿cuánto me equivoco de media?». En las unidades de $y$, fácil de
+  explicar, robusto frente a casos extremos.
+- **MSE** — en unidades **al cuadrado** (millones de pesos al cuadrado: nada
+  interpretable). Se usa porque es lo que los algoritmos minimizan, no para
+  reportar.
+- **RMSE** — la raíz del MSE devuelve las unidades originales y conserva el
+  castigo a los errores grandes. **Es la métrica por defecto en regresión.**
+- **R²** — adimensional, compara contra el modelo base. 0 significa «igual que
+  predecir la media»; negativo, «peor que la media».
+
+En un avalúo, un error de 500 millones dispara un proceso costoso y un error de
+5 millones no lo nota nadie: **aquí mandan el RMSE y el MSE**. En otro problema
+—estimar tiempos de entrega, por ejemplo— puede importar más el MAE.
+
+Y el detalle que delata: **si el RMSE es mucho mayor que el MAE, hay un grupo de
+casos donde el modelo falla a lo grande.** Esa distancia es información.
+:::
+
+```{=html}
+<div class="micro piensa"><div class="micro-cab"><span class="tipo">Piensa</span><span class="titulo">¿Qué métrica pide cada problema?</span><span class="tiempo">5 min</span></div>
+<p>Para cada situación, elige entre MAE y RMSE y justifica en una frase:</p>
+<ol>
+<li>Estimar cuántas horas durará una reparación, para programar al técnico.</li>
+<li>Estimar la demanda de un medicamento, donde quedarse corto significa desabastecimiento.</li>
+<li>Estimar el valor de un inmueble para un primer filtro de avalúo.</li>
+<li>Estimar el tiempo de entrega de domicilios, donde cada minuto de retraso cuesta igual.</li>
+</ol>
+<p>Dos piden MAE y dos piden RMSE. La clave está en si todos los errores cuestan proporcionalmente igual.</p></div>
+```
+
+## Los competidores
+
+```{python}
+#| label: competidores
+#| code-summary: "Ocho modelos inscritos"
+from sklearn.dummy import DummyRegressor
+from sklearn.linear_model import LinearRegression, RidgeCV
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor, HistGradientBoostingRegressor
+
+COMPETIDORES = [
+    # (nombre, estimador, ¿necesita estandarizar?)
+    ("Modelo base (la media)", DummyRegressor(strategy="mean"), True),
+    ("Regresión lineal",       LinearRegression(), True),
+    ("Ridge",                  RidgeCV(alphas=np.logspace(-2, 3, 30)), True),
+    ("k-NN (k = 10)",          KNeighborsRegressor(n_neighbors=10), True),
+    ("Árbol (profundidad 6)",  DecisionTreeRegressor(max_depth=6, random_state=SEMILLA), False),
+    ("Árbol sin podar",        DecisionTreeRegressor(random_state=SEMILLA), False),
+    ("Random Forest",          RandomForestRegressor(n_estimators=300, min_samples_leaf=2,
+                                                     random_state=SEMILLA, n_jobs=-1), False),
+    ("Gradient Boosting",      HistGradientBoostingRegressor(random_state=SEMILLA), False),
+]
+
+print(f"{len(COMPETIDORES)} competidores inscritos.")
+```
+
+::: {.panel-tabset}
+
+### Modelos lineales
+
+**Regresión lineal.** Ajusta un plano. Cada coeficiente dice cuánto cambia el
+precio por unidad de la predictora, manteniendo las demás constantes. Es el
+único competidor que **explica** además de predecir.
+
+**Ridge.** La misma recta, con los coeficientes encogidos por una penalización
+que elige el propio modelo por validación cruzada (`RidgeCV`). Protege cuando
+hay muchas predictoras o están correlacionadas.
+
+Ambos imponen que la relación sea lineal. Si el precio crece más rápido a partir
+de cierta área, o si el efecto del área depende de la zona, no pueden capturarlo
+salvo que se lo escribamos a mano.
+
+### Vecinos
+
+**k-NN.** Para predecir un inmueble, busca los 10 más parecidos del conjunto de
+entrenamiento y promedia sus precios. No ajusta ninguna ecuación: memoriza y
+compara.
+
+Es la tasación por comparables de toda la vida, automatizada. **Exige
+estandarizar**: sin ello, la distancia la domina el área (valores de hasta 500)
+y el número de baños (de 1 a 5) no participa.
+
+Su debilidad: cuando hay muchas variables, «cerca» deja de significar algo —la
+maldición de la dimensionalidad.
+
+### Árboles
+
+**Árbol de decisión.** Parte los datos con preguntas sucesivas: *¿área mayor de
+120 m²? ¿zona norte?*. Cada hoja predice el promedio de los inmuebles que caen
+en ella.
+
+Captura no linealidades e interacciones **sin que haya que declararlas**: si el
+área vale distinto en el norte que en el sur, el árbol lo descubre solo. No
+necesita escalamiento.
+
+Su debilidad es grave: **sin poda memoriza**. Inscribimos dos versiones —uno
+limitado a profundidad 6 y otro sin límite— precisamente para verlo.
+
+### Conjuntos
+
+**Random Forest.** Cientos de árboles, cada uno entrenado sobre una muestra
+distinta y con un subconjunto aleatorio de variables en cada corte. Se promedian
+sus predicciones. La aleatoriedad descorrelaciona los árboles, y el promedio de
+modelos poco correlacionados tiene mucha menos varianza que uno solo.
+
+**Gradient Boosting.** Árboles en cadena: cada uno corrige los errores del
+anterior. Suele ser el mejor modelo tabular «sin afinar». Usamos
+`HistGradientBoostingRegressor`, la implementación rápida de scikit-learn.
+
+Ambos pierden la interpretabilidad del árbol individual.
+
+:::
+
+## Ronda 1 · Todos contra todos
+
+```{python}
+#| label: funcion-torneo
+#| code-summary: "El juez del torneo"
+def jugar_torneo(datos, etiqueta):
+    """Ajusta los ocho competidores sobre la misma partición y devuelve el marcador."""
+    X = datos[NUMERICAS + CATEGORICAS]
+    y = datos["precio_mm"]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.25, random_state=SEMILLA)
+
+    marcador = []
+    for nombre, estimador, escalar in COMPETIDORES:
+        flujo = Pipeline([("prep", preprocesador(escalar)),
+                          ("modelo", estimador)]).fit(X_train, y_train)
+        pred_test = flujo.predict(X_test)
+        pred_train = flujo.predict(X_train)
+        marcador.append({
+            "Competidor": nombre,
+            "MAE": mean_absolute_error(y_test, pred_test),
+            "RMSE": root_mean_squared_error(y_test, pred_test),
+            "R²": r2_score(y_test, pred_test),
+            "RMSE entrenamiento": root_mean_squared_error(y_train, pred_train),
+        })
+
+    tabla = pd.DataFrame(marcador).sort_values("RMSE").reset_index(drop=True)
+    tabla.insert(0, "Puesto", range(1, len(tabla) + 1))
+    print(f"{etiqueta}  ·  {len(datos):,} registros  ·  "
+          f"{len(X_train):,} entrenamiento / {len(X_test):,} prueba")
+    return tabla
+
+ronda_1 = jugar_torneo(vivienda, "RONDA 1 — con los datos tal como están")
+
+ronda_1.style.format({"MAE": "{:.1f}", "RMSE": "{:.1f}", "R²": "{:.3f}",
+                      "RMSE entrenamiento": "{:.1f}"}).hide(axis="index") \
+    .background_gradient(cmap="Greens_r", subset=["RMSE"])
+```
+
+```{python}
+#| label: ganador-1
+#| echo: false
+g = ronda_1.iloc[0]
+lineal_1 = ronda_1[ronda_1.Competidor == "Regresión lineal"].iloc[0]
+print(f"Gana: {g.Competidor}")
+print(f"  RMSE {g.RMSE:.1f} millones · R² {g['R²']:.3f}")
+print(f"  La regresión lineal queda en el puesto {int(lineal_1.Puesto)} "
+      f"(RMSE {lineal_1.RMSE:.1f})")
+```
+
+::: {.callout-warning}
+## Un momento
+
+El **árbol sin podar** —el modelo que el Cuadernillo 1 usó como ejemplo de
+sobreajuste— acaba de ganar el torneo con un R² de
+`{python} f"{g['R²']:.3f}".replace(".", ",")`.
+
+Mira el MAE: se equivoca de media en `{python} f"{g.MAE:.0f}"` millones, sobre
+un precio mediano de unos 680. **Un error medio del
+`{python} f"{100*g.MAE/680:.0f}"` %** en el avalúo de una vivienda, a partir de
+cuatro variables y sin ninguna información sobre el estado del inmueble, el
+piso, la antigüedad, la vista o el año de construcción.
+
+Un avaluador profesional, con visita presencial incluida, no baja de ahí. Y
+nosotros lo hemos conseguido con `area_m2`, `n_cuartos`, `n_banos` y
+`n_garajes`.
+
+No es un triunfo. Es un síntoma.
+:::
+
+```{=html}
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta el problema</span><span class="titulo">Antes de seguir leyendo</span><span class="tiempo">10 min</span></div>
+<p>Mira la tabla de la ronda 1 con atención y responde <b>antes</b> de pasar a la sección siguiente:</p>
+<ol>
+<li>Compara la columna <code>RMSE</code> con <code>RMSE entrenamiento</code> en el árbol sin podar. ¿Qué esperarías ver en un modelo que memoriza? ¿Es lo que ves?</li>
+<li>Los modelos que mejor puntúan son justo los más flexibles. ¿Qué tienen en común que los lineales no tengan?</li>
+<li>En el Cuadernillo 2 aprendiste cinco preguntas para rastrear una fuga de información. Una de ellas explica esto. ¿Cuál?</li>
+</ol>
+<p>Pista: no es una variable la que está mal. Son las filas.</p></div>
+```
+
+## La descalificación
+
+El Cuadernillo 2 dejó una lista de sospechas para cuando un resultado es
+demasiado bueno. La quinta era: *¿hay filas duplicadas entre entrenamiento y
+prueba?*
+
+```{python}
+#| label: duplicados
+#| code-summary: "La pregunta que nadie hizo"
+n_duplicados = vivienda.duplicated().sum()
+n_unicos = len(vivienda.drop_duplicates())
+
+print(f"Registros en la base:        {len(vivienda):>6,}")
+print(f"Filas duplicadas exactas:    {n_duplicados:>6,}  ({n_duplicados/len(vivienda):.1%})")
+print(f"Inmuebles realmente únicos:  {n_unicos:>6,}")
+```
+
+```{python}
+#| label: gemelos
+#| code-summary: "¿Cuántos inmuebles de prueba ya estaban en entrenamiento?"
+X_tr, X_te = train_test_split(vivienda, test_size=0.25, random_state=SEMILLA)
+
+clave = NUMERICAS + CATEGORICAS + ["valor_venta", "barrio_comun"]
+en_entrenamiento = set(map(tuple, X_tr[clave].astype(str).to_numpy()))
+gemelos = sum(1 for fila in X_te[clave].astype(str).to_numpy()
+              if tuple(fila) in en_entrenamiento)
+
+print(f"Inmuebles en el conjunto de prueba:            {len(X_te):>5,}")
+print(f"…que aparecen idénticos en entrenamiento:      {gemelos:>5,}  "
+      f"({gemelos/len(X_te):.1%})")
+```
+
+::: {.callout-important}
+## El torneo estaba amañado
+
+El `{python} f"{gemelos/len(X_te):.1%}".replace(".", ",")` de los inmuebles del
+conjunto de prueba **ya estaba, idéntico, en el de entrenamiento**.
+
+El árbol sin podar no predijo nada: **recordó**. Memorizó cada inmueble de
+entrenamiento con su precio exacto, y en la prueba se reencontró con los mismos
+inmuebles. Es un examen con las respuestas en el bolsillo.
+
+Y fíjate en quién se benefició: los modelos capaces de memorizar —árbol sin
+podar, Random Forest, k-NN— subieron al podio. Los lineales, que no pueden
+memorizar aunque quieran, se quedaron abajo.
+
+**La fuga no favorece a todos por igual: premia a los modelos flexibles.** Por
+eso una comparación hecha sobre datos con fuga no solo infla los números, sino
+que además **elige mal el ganador**.
+:::
+
+::: {.callout-note appearance="simple"}
+## De dónde salen los duplicados
+
+No es un error nuestro: vienen del archivo original. Un mismo inmueble publicado
+por varias inmobiliarias, o republicado durante meses, genera registros
+idénticos en una base de ofertas.
+
+Es el caso más común de duplicación en datos reales, y también el más fácil de
+pasar por alto, porque **no hay ningún valor erróneo**: cada fila es
+perfectamente válida por separado. El problema no está en las filas, está en
+contarlas varias veces.
+:::
+
+```{python}
+#| label: deduplicar
+#| code-summary: "Un inmueble, una fila"
+vivienda_unica = vivienda.drop_duplicates().reset_index(drop=True)
+
+print(f"Antes:   {len(vivienda):>6,} filas")
+print(f"Después: {len(vivienda_unica):>6,} inmuebles únicos")
+print(f"\nEl torneo se repite. Mismas reglas, mismos competidores, datos honestos.")
+```
+
+## Ronda 2 · El torneo de verdad
+
+```{python}
+#| label: ronda-2
+#| code-summary: "Se repite el torneo sin duplicados"
+ronda_2 = jugar_torneo(vivienda_unica, "RONDA 2 — un inmueble, una fila")
+
+ronda_2.style.format({"MAE": "{:.1f}", "RMSE": "{:.1f}", "R²": "{:.3f}",
+                      "RMSE entrenamiento": "{:.1f}"}).hide(axis="index") \
+    .background_gradient(cmap="Greens_r", subset=["RMSE"])
+```
+
+```{python}
+#| label: fig-caida
+#| fig-cap: "Cómo cambia el puesto de cada competidor al eliminar los duplicados. Los modelos capaces de memorizar son los que se desploman."
+comparar = (ronda_1[["Competidor", "Puesto", "R²"]]
+            .merge(ronda_2[["Competidor", "Puesto", "R²"]],
+                   on="Competidor", suffixes=(" ronda 1", " ronda 2")))
+
+fig, ax = plt.subplots(figsize=(8.5, 4.4))
+for _, fila in comparar.iterrows():
+    sube = fila["Puesto ronda 2"] < fila["Puesto ronda 1"]
+    color = "#2E6B4F" if sube else "#B4543A"
+    ax.plot([0, 1], [fila["Puesto ronda 1"], fila["Puesto ronda 2"]],
+            "o-", color=color, linewidth=1.8, markersize=7)
+    ax.text(-0.04, fila["Puesto ronda 1"], fila["Competidor"],
+            ha="right", va="center", fontsize=9)
+    ax.text(1.04, fila["Puesto ronda 2"], fila["Competidor"],
+            ha="left", va="center", fontsize=9)
+
+ax.set_xlim(-0.75, 1.75)
+ax.set_xticks([0, 1])
+ax.set_xticklabels(["Ronda 1\n(con duplicados)", "Ronda 2\n(datos honestos)"],
+                   fontsize=10)
+ax.invert_yaxis()
+ax.set_ylabel("Puesto")
+ax.set_yticks(range(1, len(comparar) + 1))
+ax.grid(axis="x", visible=False)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: lectura-ronda-2
+#| echo: false
+g2 = ronda_2.iloc[0]
+arbol_1 = ronda_1[ronda_1.Competidor == "Árbol sin podar"].iloc[0]
+arbol_2 = ronda_2[ronda_2.Competidor == "Árbol sin podar"].iloc[0]
+lineal_2 = ronda_2[ronda_2.Competidor == "Regresión lineal"].iloc[0]
+
+print(f"El árbol sin podar pasa del puesto {int(arbol_1.Puesto)} al "
+      f"{int(arbol_2.Puesto)} de {len(ronda_2)}.")
+print(f"  R²: {arbol_1['R²']:.3f}  →  {arbol_2['R²']:.3f}")
+print(f"  RMSE entrenamiento {arbol_2['RMSE entrenamiento']:.0f} frente a "
+      f"{arbol_2.RMSE:.0f} en prueba: sobreajuste de manual.")
+print(f"\nLa regresión lineal sube al puesto {int(lineal_2.Puesto)} "
+      f"(R² {lineal_2['R²']:.3f}).")
+print(f"Los cuatro primeros están entre R² {ronda_2['R²'].iloc[0]:.3f} y "
+      f"{ronda_2['R²'].iloc[3]:.3f}.")
+```
+
+::: {.callout-tip}
+## Lo que revela la segunda ronda
+
+1.  **El árbol sin podar es el peor competidor**, como el Cuadernillo 1
+    anticipaba. Su RMSE en entrenamiento es cuatro veces menor que en prueba:
+    la firma del sobreajuste.
+2.  **La regresión lineal es competitiva.** Con cuatro predictoras y dos
+    categóricas, el plano captura casi todo lo que hay que capturar.
+3.  **Los cuatro primeros están muy juntos.** Y ahí aparece la pregunta que
+    cierra el torneo: ¿esa diferencia es real?
+:::
+
+```{=html}
+<div class="micro interpreta"><div class="micro-cab"><span class="tipo">Interpreta</span><span class="titulo">Leer el gráfico de puestos</span><span class="tiempo">10 min</span></div>
+<p>Observa la figura de los cambios de puesto entre rondas:</p>
+<ol>
+<li>¿Qué tienen en común los modelos que bajan? ¿Y los que suben?</li>
+<li>El modelo base no se mueve de puesto y su R² sigue siendo 0 en ambas rondas. ¿Por qué los duplicados no lo afectan?</li>
+<li>Un compañero propone: «para evitar el problema, usemos siempre modelos lineales». ¿Es la conclusión correcta? ¿Cuál sería?</li>
+</ol></div>
+```
+
+## La final · ¿Hay ganador de verdad?
+
+Una sola partición da un número que depende de qué inmuebles cayeron en el
+conjunto de prueba. Para decidir si la diferencia entre los finalistas es real,
+hacemos que cada uno juegue **cinco veces**, con cinco particiones distintas.
+
+```{python}
+#| label: final-cv
+#| code-summary: "Validación cruzada de cinco pliegues"
+X = vivienda_unica[NUMERICAS + CATEGORICAS]
+y = vivienda_unica["precio_mm"]
+cv = KFold(n_splits=5, shuffle=True, random_state=SEMILLA)
+
+final = []
+for nombre, estimador, escalar in COMPETIDORES:
+    puntajes = -cross_val_score(
+        Pipeline([("prep", preprocesador(escalar)), ("modelo", estimador)]),
+        X, y, cv=cv, scoring="neg_root_mean_squared_error")
+    final.append({
+        "Competidor": nombre,
+        "RMSE medio": puntajes.mean(),
+        "Desviación entre pliegues": puntajes.std(),
+        "Peor pliegue": puntajes.max(),
+        "Mejor pliegue": puntajes.min(),
+    })
+
+tabla_final = pd.DataFrame(final).sort_values("RMSE medio").reset_index(drop=True)
+tabla_final.insert(0, "Puesto", range(1, len(tabla_final) + 1))
+tabla_final.style.format({
+    "RMSE medio": "{:.1f}", "Desviación entre pliegues": "{:.1f}",
+    "Peor pliegue": "{:.1f}", "Mejor pliegue": "{:.1f}"}).hide(axis="index") \
+    .background_gradient(cmap="Greens_r", subset=["RMSE medio"])
+```
+
+```{python}
+#| label: veredicto
+#| echo: false
+campeon = tabla_final.iloc[0]
+segundo = tabla_final.iloc[1]
+lineal_f = tabla_final[tabla_final.Competidor == "Regresión lineal"].iloc[0]
+diferencia = segundo["RMSE medio"] - campeon["RMSE medio"]
+dispersion = campeon["Desviación entre pliegues"]
+
+print(f"1º {campeon.Competidor}: RMSE {campeon['RMSE medio']:.1f} "
+      f"± {dispersion:.1f}")
+print(f"2º {segundo.Competidor}: RMSE {segundo['RMSE medio']:.1f}")
+print(f"\nDiferencia entre ambos:            {diferencia:.1f} millones")
+print(f"Desviación entre pliegues del 1º:  {dispersion:.1f} millones")
+print(f"\nLa diferencia es {diferencia/dispersion:.2f} veces la dispersión.")
+print(f"\nLa regresión lineal queda {lineal_f['RMSE medio'] - campeon['RMSE medio']:.1f} "
+      f"millones por detrás del campeón:")
+print(f"también dentro del margen de variación del procedimiento.")
+```
+
+::: {.callout-important}
+## El veredicto: empate técnico
+
+La diferencia entre el primero y el segundo es
+`{python} f"{diferencia/dispersion:.2f}".replace(".", ",")` veces la dispersión
+que el propio procedimiento de estimación produce entre pliegues. Dicho sin
+rodeos: **si repitiéramos el torneo con otra semilla, el orden podría
+invertirse.**
+
+Lo mismo vale para la regresión lineal, que queda a menos de una desviación del
+campeón.
+
+No hay ganador por desempeño. Hay **cuatro modelos empatados** y una decisión
+que tomar con otros criterios:
+
+| Criterio | A quién favorece |
+|---|---|
+| **Interpretabilidad** | La regresión lineal, única que entrega coeficientes explicables ante una auditoría |
+| **Coste de entrenamiento** | Lineal y Ridge: milisegundos frente a segundos |
+| **Mantenimiento** | Los lineales: menos hiperparámetros que vigilar |
+| **Capacidad de mejorar con más datos** | Los algorítmicos: con 10 000 inmuebles reales se despegarían |
+
+: Cuando el desempeño empata, deciden los demás criterios {.striped tbl-colwidths="[36,64]"}
+
+Para un sistema de avalúo que debe justificarse ante un cliente y ante un
+regulador, **la regresión lineal gana el torneo sin ser la más precisa.** Y esa
+es una conclusión profesional, no una derrota.
+:::
+
+```{=html}
+<div class="micro decide"><div class="micro-cab"><span class="tipo">Decide</span><span class="titulo">Tu veredicto, por escrito</span><span class="tiempo">15 min</span></div>
+<p>El comité te pide una recomendación de una página. Escribe tres párrafos:</p>
+<ol>
+<li><b>Qué modelo propones y por qué</b>, citando números de la tabla final —incluida la dispersión, no solo la media.</li>
+<li><b>Qué margen de error debe esperar la entidad</b>, en pesos y en porcentaje sobre el precio mediano. Usa el MAE o el RMSE según lo que acabas de aprender, y di cuál elegiste.</li>
+<li><b>Qué pasó con los duplicados</b>, explicado para alguien que no es estadístico, y qué habría ocurrido si no se hubieran detectado.</li>
+</ol>
+<p>El tercer párrafo es el que separa a un analista de alguien que ejecuta código.</p></div>
+```
+
+```{=html}
+<div class="micro prueba"><div class="micro-cab"><span class="tipo">Prueba</span><span class="titulo">Mueve las perillas</span><span class="tiempo">15 min</span></div>
+<p>En el bloque <code>competidores</code>, prueba estos cambios y vuelve a ejecutar el torneo de la ronda 2:</p>
+<ol>
+<li><code>KNeighborsRegressor(n_neighbors=3)</code> y <code>n_neighbors=30</code>. ¿En qué dirección se mueve el RMSE? ¿Qué le pasa al modelo cuando k es muy pequeño?</li>
+<li><code>DecisionTreeRegressor(max_depth=3)</code> y <code>max_depth=12</code>. Anota el RMSE de entrenamiento y el de prueba en cada caso.</li>
+<li>Quita el escalamiento a k-NN: cámbialo a <code>True</code> → <code>False</code> en su línea. ¿Cuánto empeora? ¿Por qué?</li>
+</ol>
+<p>El tercero es el más informativo: demuestra con números por qué la regla 3 del torneo existe.</p></div>
+```
+
+```{=html}
+<div class="micro discute"><div class="micro-cab"><span class="tipo">Discute</span><span class="titulo">Para el encuentro virtual</span><span class="tiempo">15 min</span></div>
+<p>Un proveedor presenta un modelo de avalúo con <b>R² de 0,98</b> y adjunta la tabla de métricas. El gerente quiere firmar hoy.</p>
+<p>Con lo que acabas de ver, prepara:</p>
+<ol>
+<li>Tres preguntas que le harías antes de firmar.</li>
+<li>Qué te haría sospechar más: un R² de 0,98 o uno de 0,76. Justifica.</li>
+<li>Si el proveedor responde «validamos con train/test, un 25 % reservado», ¿queda resuelta tu duda? ¿Qué falta por preguntar?</li>
+</ol></div>
+```
+
+```{=html}
+<div class="recordar">
+<p>Lo que debes recordar</p>
+<ul>
+<li>Comparar modelos exige <b>las mismas reglas para todos</b>: una partición, una semilla, un preprocesamiento y el modelo base compitiendo.</li>
+<li><b>MAE</b> reparte, <b>RMSE</b> castiga los errores grandes, <b>MSE</b> no es interpretable y <b>R²</b> compara contra la media. La métrica la elige el problema, no la costumbre.</li>
+<li>Si el RMSE es mucho mayor que el MAE, hay un grupo de casos donde el modelo falla a lo grande. Búscalo.</li>
+<li>Un resultado demasiado bueno es un síntoma, no un logro. <b>Filas duplicadas entre entrenamiento y prueba</b> es una de las causas más frecuentes.</li>
+<li>La fuga no infla a todos por igual: <b>premia a los modelos flexibles</b> y por eso también elige mal el ganador.</li>
+<li>Un árbol sin podar memoriza. Es el ejemplo vivo de varianza alta.</li>
+<li>Sin la dispersión entre pliegues no se puede declarar un ganador. Media sola no basta.</li>
+<li>Cuando el desempeño empata, se decide por interpretabilidad, coste y mantenimiento. <b>Eso también es una decisión técnica.</b></li>
+</ul>
+</div>
+```
+
+## Errores frecuentes en este tema
+
+| Error | Consecuencia | Corrección |
+|---|---|---|
+| Comparar modelos con particiones distintas | La comparación no significa nada | Una sola partición, fijada con semilla, para todos |
+| Cada modelo con su propio preprocesamiento | Se compara el flujo, no el modelo | El mismo `ColumnTransformer` para todos |
+| No comprobar duplicados antes de partir | Fuga que premia a los modelos flexibles | `df.duplicated().sum()` antes de cualquier partición |
+| Celebrar un R² altísimo | Casi siempre hay fuga detrás | Sospechar por encima de 0,95 en problemas sociales o económicos |
+| Reportar MSE como medida de error | Está en unidades al cuadrado: no se puede interpretar | Reportar RMSE o MAE |
+| Usar k-NN o SVM sin estandarizar | La variable de mayor escala domina la distancia | `StandardScaler` dentro del `Pipeline` |
+| Declarar ganador por la media de la validación cruzada | Se confunde ruido con mejora | Comparar la diferencia contra la desviación entre pliegues |
+| Descartar el modelo lineal por «anticuado» | Se pierde interpretabilidad sin ganar desempeño | Medir primero; a veces el plano basta |
+
+: Errores frecuentes del torneo {.striped tbl-colwidths="[32,36,32]"}
+
+## El mismo torneo, en R
+
+::: {.panel-tabset}
+
+### Python
+
+```{.python}
+for nombre, estimador, escalar in COMPETIDORES:
+    flujo = Pipeline([("prep", preprocesador(escalar)), ("modelo", estimador)])
+    puntajes = -cross_val_score(flujo, X, y, cv=KFold(5, shuffle=True, random_state=42),
+                                scoring="neg_root_mean_squared_error")
+    print(nombre, puntajes.mean(), puntajes.std())
+```
+
+### R (tidymodels)
+
+```{.r}
+library(tidymodels)
+set.seed(42)
+
+receta <- recipe(precio_mm ~ ., data = entrenamiento) |>
+  step_impute_median(all_numeric_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_normalize(all_numeric_predictors())
+
+competidores <- list(
+  lineal  = linear_reg()                        |> set_engine("lm"),
+  knn     = nearest_neighbor(neighbors = 10)    |> set_engine("kknn")  |> set_mode("regression"),
+  arbol   = decision_tree(tree_depth = 6)       |> set_engine("rpart") |> set_mode("regression"),
+  bosque  = rand_forest(trees = 300)            |> set_engine("ranger")|> set_mode("regression"),
+  boost   = boost_tree(trees = 300)             |> set_engine("xgboost") |> set_mode("regression")
+)
+
+# workflow_set compara todos los modelos con las mismas reglas
+torneo <- workflow_set(preproc = list(receta = receta), models = competidores) |>
+  workflow_map(resamples = vfold_cv(entrenamiento, v = 5),
+               metrics = metric_set(rmse, mae, rsq), seed = 42)
+
+rank_results(torneo, rank_metric = "rmse")
+autoplot(torneo)
+```
+
+:::
+
+`workflow_set()` de tidymodels es, literalmente, un torneo de modelos: aplica la
+misma receta y los mismos remuestreos a todos los competidores y devuelve el
+ranking. Es el equivalente directo de lo que hicimos a mano.
+
+## Conexión con la Actividad 2
+
+::: {.callout-note}
+## Actividad institucional 2 · Regresión lineal y regularizada (20 %, semanas 4 y 5)
+
+La actividad sigue siendo sobre **modelos lineales**: supuestos evaluados,
+interpretación de coeficientes y validación cruzada. Este torneo no la
+reemplaza. Lo que aporta:
+
+- **El modelo base y la tabla comparativa** que la actividad exige, con el
+  formato esperado.
+- **La justificación de la métrica**: no basta reportar RMSE, hay que decir por
+  qué esa y no MAE.
+- **La comprobación de duplicados** antes de partir, que a partir de ahora se
+  espera en todas las entregas.
+- Si incluyes un modelo algorítmico como comparación, hazlo bajo las cuatro
+  reglas del torneo y reporta la dispersión. **Un Random Forest sin validación
+  honesta resta en lugar de sumar.**
+:::
+
+El siguiente paso es el [Cuadernillo 4](../04-clasificacion/cuadernillo-04.qmd),
+donde el mismo torneo se repite con la variable objetivo convertida en
+categoría, y donde el marcador cambia por completo.
+
+## Recursos adicionales
+
+- @james2023, capítulos 8 (árboles, bosques y boosting) y 5 (remuestreo).
+- @kaufman2012 — fuga de información, con casos donde pasó inadvertida en
+  competencias reales.
+- [scikit-learn · Ensemble methods](https://scikit-learn.org/stable/modules/ensemble.html) —
+  documentación de Random Forest y Gradient Boosting.
+- [scikit-learn · Metrics for regression](https://scikit-learn.org/stable/modules/model_evaluation.html#regression-metrics) —
+  catálogo completo de métricas.
+- [tidymodels · workflowsets](https://workflowsets.tidymodels.org/) — el torneo
+  de modelos, en R.
