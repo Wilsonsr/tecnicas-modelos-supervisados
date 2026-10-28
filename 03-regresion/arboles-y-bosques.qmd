@@ -10,7 +10,7 @@ description: "Métricas de regresión (MAE, MSE, RMSE, MAPE, R²) explicadas den
 <div class="ficha-item"><span class="et">Encuentro</span><span class="vl">Virtual 3 · tercera parte</span></div>
 <div class="ficha-item"><span class="et">Semana</span><span class="vl">4</span></div>
 <div class="ficha-item"><span class="et">Unidad</span><span class="vl">2 · Modelos supervisados</span></div>
-<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">100–120 minutos</span></div>
+<div class="ficha-item"><span class="et">Tiempo estimado</span><span class="vl">120–140 minutos</span></div>
 <div class="ficha-item"><span class="et">Resultados de aprendizaje</span><span class="vl"><span class="ra ra-13">RA13</span><span class="ra ra-14">RA14</span><span class="ra ra-15">RA15</span></span></div>
 <div class="ficha-item"><span class="et">Prepara para</span><span class="vl">Actividad 2 · Regresión lineal y regularizada (20 %)</span></div>
 </div>
@@ -20,7 +20,7 @@ description: "Métricas de regresión (MAE, MSE, RMSE, MAPE, R²) explicadas den
 ```
 
 ```{=html}
-<div class="acciones"><a href="../cuadernos/cuadernillo-03c-bosques.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-03c-bosques.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a><span class="nota">La ejecución completa toma cerca de dos minutos.</span></div>
+<div class="acciones"><a href="../cuadernos/cuadernillo-03c-bosques.ipynb" download><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7"/><path d="M2.5 12.5v1h11v-1"/></svg>Descargar el cuaderno (.ipynb)</a><a href="https://colab.research.google.com/github/Wilsonsr/tecnicas-modelos-supervisados/blob/main/cuadernos/cuadernillo-03c-bosques.ipynb" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 5.5 11 8l-4.5 2.5z"/></svg>Abrir en Google Colab</a><span class="nota">La ejecución completa toma unos tres minutos; la parte de SHAP es la más lenta.</span></div>
 ```
 
 ## La pregunta detonante
@@ -41,6 +41,7 @@ Este cuadernillo responde las dos con **tres ideas, no más**:
 <div class="paso"><b>Medir el error</b><span>Cinco métricas de regresión, calculadas a mano sobre siete números, para ver qué mide cada una y en qué unidades queda.</span></div>
 <div class="paso"><b>Entender el error</b><span>Un árbol de decisión, donde cada predicción es visiblemente un promedio y el error del modelo es la dispersión que queda dentro de sus hojas.</span></div>
 <div class="paso"><b>Reducir el error</b><span>Muchos árboles promediados: Random Forest. Y la comprobación honesta de si la mejora es real o cabe dentro del ruido.</span></div>
+<div class="paso"><b>Explicar el modelo</b><span>Qué variables usó el bosque, y por qué le puso ese precio a <i>esta</i> vivienda: importancia por permutación y valores SHAP.</span></div>
 </div>
 ```
 
@@ -323,8 +324,100 @@ merece existir.
 # Parte 3 · El árbol: de dónde sale cada predicción
 
 Un árbol de regresión parte los datos en grupos con cortes sucesivos y, dentro
-de cada grupo, **predice el promedio**. Nada más. Empezamos con un árbol
-diminuto —dos niveles, cuatro grupos— precisamente para poder revisarlo entero.
+de cada grupo, **predice el promedio**. Nada más. Antes de construir uno,
+conviene fijar el vocabulario: son seis palabras y todas aparecerán después en
+los nombres de los hiperparámetros.
+
+### Anatomía de un árbol
+
+```{python}
+#| label: anatomia
+#| code-summary: "El diagrama de términos (se dibuja con matplotlib, no es una imagen externa)"
+#| fig-cap: "Las partes de un árbol de decisión, sobre el árbol que construiremos enseguida. Los números de las hojas son precios en millones de pesos."
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+
+AZUL, TEAL, VERDE, GRIS, ROJO = "#1D4E7C", "#17808C", "#2E6B4F", "#8A8F98", "#B4543A"
+
+def caja(ax, x, y, texto, color, ancho=1.9, alto=0.52):
+    ax.add_patch(FancyBboxPatch((x - ancho / 2, y - alto / 2), ancho, alto,
+                                boxstyle="round,pad=0.04,rounding_size=0.1",
+                                linewidth=1.4, edgecolor=color,
+                                facecolor=color + "1A"))
+    ax.text(x, y, texto, ha="center", va="center", fontsize=8.5, color="#12304F")
+
+def rama(ax, x1, y1, x2, y2, etiqueta=None):
+    ax.add_patch(FancyArrowPatch((x1, y1 - 0.26), (x2, y2 + 0.26),
+                                 arrowstyle="-|>", mutation_scale=9,
+                                 linewidth=1.2, color=GRIS))
+    if etiqueta:
+        ax.text((x1 + x2) / 2 + (0.18 if x2 > x1 else -0.18), (y1 + y2) / 2 + 0.04,
+                etiqueta, ha="center", va="center", fontsize=7.5,
+                color="#4A5560", style="italic")
+
+fig, ax = plt.subplots(figsize=(8.6, 4.8))
+caja(ax, 4.5, 3.4, "área ≤ 177 m²", AZUL, ancho=2.1)
+caja(ax, 2.2, 2.1, "área ≤ 122 m²", TEAL, ancho=2.0)
+caja(ax, 6.8, 2.1, "área ≤ 278 m²", TEAL, ancho=2.0)
+for x, txt in [(1.0, "437"), (3.4, "881"), (5.6, "1 376"), (8.0, "2 265")]:
+    caja(ax, x, 0.8, txt, VERDE, ancho=1.25)
+
+rama(ax, 4.5, 3.4, 2.2, 2.1, "sí")
+rama(ax, 4.5, 3.4, 6.8, 2.1, "no")
+rama(ax, 2.2, 2.1, 1.0, 0.8); rama(ax, 2.2, 2.1, 3.4, 0.8)
+rama(ax, 6.8, 2.1, 5.6, 0.8); rama(ax, 6.8, 2.1, 8.0, 0.8)
+
+anot = dict(fontsize=8.2, fontweight="bold", color=ROJO)
+ax.annotate("nodo raíz\n(toda la muestra)", xy=(5.6, 3.45), xytext=(7.9, 4.0),
+            arrowprops=dict(arrowstyle="->", color=ROJO, lw=1.1), ha="left", **anot)
+ax.annotate("nodo de decisión\n(se vuelve a dividir)", xy=(1.2, 2.1), xytext=(-0.5, 2.9),
+            arrowprops=dict(arrowstyle="->", color=ROJO, lw=1.1), ha="left", **anot)
+ax.annotate("rama", xy=(3.3, 2.78), xytext=(1.6, 3.35),
+            arrowprops=dict(arrowstyle="->", color=ROJO, lw=1.1), ha="left", **anot)
+ax.annotate("nodos hoja\n(aquí se predice: el promedio del grupo)",
+            xy=(1.0, 0.55), xytext=(1.6, -0.25),
+            arrowprops=dict(arrowstyle="->", color=ROJO, lw=1.1), ha="left", **anot)
+
+ax.plot([-0.9, -0.9], [3.4, 0.8], color=GRIS, lw=1, ls=":")
+for y, txt in [(3.4, "0"), (2.1, "1"), (0.8, "2")]:
+    ax.plot([-1.0, -0.8], [y, y], color=GRIS, lw=1)
+    ax.text(-1.15, y, txt, ha="right", va="center", fontsize=8, color="#4A5560")
+ax.text(-1.75, 2.1, "profundidad", ha="center", va="center", fontsize=8.2,
+        rotation=90, color=ROJO, fontweight="bold")
+
+ax.add_patch(FancyBboxPatch((4.85, 0.44), 3.9, 0.72,
+                            boxstyle="round,pad=0.05,rounding_size=0.1",
+                            linewidth=1.3, edgecolor=ROJO, facecolor="none",
+                            linestyle=(0, (4, 3))))
+ax.annotate("podar = borrar estas dos hojas\ny dejar al padre como terminal",
+            xy=(8.75, 0.8), xytext=(9.1, 1.75),
+            arrowprops=dict(arrowstyle="->", color=ROJO, lw=1.1),
+            ha="left", fontsize=8.2, fontweight="bold", color=ROJO)
+
+ax.set_xlim(-2.6, 10.4); ax.set_ylim(-0.75, 4.5)
+ax.axis("off"); ax.grid(False)
+plt.tight_layout()
+plt.show()
+```
+
+| Término | Qué es | Dónde reaparece |
+|---|---|---|
+| **Nodo raíz** | El nodo de arriba: contiene toda la muestra antes de cualquier corte | la primera pregunta que hace el modelo |
+| **División** | Partir un nodo en dos subnodos según una condición sobre una variable | el criterio de corte de la sección siguiente |
+| **Nodo de decisión** | Un nodo que vuelve a dividirse (tiene hijos) | `min_samples_split` |
+| **Nodo hoja o terminal** | Un nodo que ya no se divide: **aquí se produce la predicción** | `min_samples_leaf`, `max_leaf_nodes` |
+| **Rama o subárbol** | El camino de la raíz a una hoja; una sección completa del árbol | la regla que se lee en voz alta |
+| **Profundidad** | Cuántas divisiones hay desde la raíz hasta la hoja más lejana | `max_depth` |
+| **Poda** | Eliminar subnodos de un nodo de decisión y volverlo terminal | `ccp_alpha`, Parte 4 |
+| **Nodo padre / hijo** | Un nodo dividido es el padre de los nodos que genera | la estructura del recorrido |
+
+: Vocabulario del árbol {.striped tbl-colwidths="[22,48,30]"}
+
+El recorrido de una predicción es, entonces, siempre el mismo: se entra por la
+raíz, se baja por la rama que cumple cada condición y **se para en una hoja**,
+que devuelve su valor. Eso es todo lo que hace un árbol ya entrenado.
+
+Empezamos con un árbol diminuto —dos niveles, cuatro hojas— precisamente para
+poder revisarlo entero.
 
 ```{python}
 #| label: arbol-chico
@@ -629,15 +722,80 @@ marcador.append(evaluar("Árbol sin podar", y_test,
 pd.DataFrame(marcador).round(3).set_index("modelo")
 ```
 
+### Pre-poda y post-poda
+
+Limitar la profundidad es solo una de las dos familias de estrategias contra el
+sobreajuste, y conviene saber en cuál se está trabajando.
+
+::: {.callout-note appearance="simple"}
+## Las dos familias
+
+**Pre-poda** (*pre-pruning*): se **detiene la construcción antes**, impidiendo
+divisiones que no cumplan un umbral. Es lo que acabamos de hacer con
+`max_depth`, y es también lo que hacen `min_samples_split`,
+`min_samples_leaf`, `max_leaf_nodes` y `min_impurity_decrease`. Ventaja: es
+rápida. Desventaja: el umbral es difícil de elegir, y una división que parece
+mala puede ser la que habilita una excelente justo debajo.
+
+**Post-poda** (*post-pruning*): se deja **crecer el árbol completo** y después
+se recortan las ramas que no se sostienen, comprobando con validación cruzada
+si recortar mejora o empeora. Es más costosa pero evita el problema anterior,
+porque juzga cada rama viendo lo que hay debajo de ella.
+
+En `scikit-learn` la post-poda se hace con `ccp_alpha` (*cost-complexity
+pruning*, la poda de Breiman): a mayor `alpha`, más agresivo el recorte. Con
+`alpha = 0` no se poda nada.
+:::
+
+```{python}
+#| label: post-poda
+#| code-summary: "Post-poda por costo-complejidad, elegida con validación cruzada"
+#| fig-cap: "RMSE de validación cruzada para distintos niveles de poda. El eje recorre, de izquierda a derecha, desde el árbol completo hasta un árbol casi vacío."
+alfas = [0, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000]
+rmse_alfa, hojas_alfa = [], []
+for a in alfas:
+    m = DecisionTreeRegressor(ccp_alpha=a, random_state=SEMILLA)
+    puntajes = -cross_val_score(m, A_train, y_train, cv=cv,
+                                scoring="neg_root_mean_squared_error")
+    rmse_alfa.append(puntajes.mean())
+    hojas_alfa.append(m.fit(A_train, y_train).get_n_leaves())
+
+fig, ax = plt.subplots()
+ax.plot(range(len(alfas)), rmse_alfa, "o-", color="#6A4C93", lw=2, ms=5)
+ax.set_xticks(range(len(alfas)))
+ax.set_xticklabels([f"{a:,}\n({h} hojas)" for a, h in zip(alfas, hojas_alfa)],
+                   fontsize=7.5)
+ax.set_xlabel("ccp_alpha (y número de hojas que deja)")
+ax.set_ylabel("RMSE de validación cruzada")
+plt.tight_layout()
+plt.show()
+
+mejor_alfa = alfas[int(np.argmin(rmse_alfa))]
+print(f"mejor ccp_alpha: {mejor_alfa:,} "
+      f"→ {hojas_alfa[int(np.argmin(rmse_alfa))]} hojas, "
+      f"RMSE {min(rmse_alfa):.1f} mm")
+print(f"la pre-poda con max_depth={d_elegida} daba "
+      f"{cv_prof.loc[d_elegida, 'RMSE medio']:.1f} mm")
+```
+
+Los dos caminos llegan a un error parecido. La diferencia no es estadística
+sino **de comunicación**: «limité la profundidad a `{python} f"{d_elegida}"`»
+se explica en un comité; «podé con un alfa de
+`{python} f"{mejor_alfa:,}"`» no.
+
 ```{=html}
 <div class="micro compara"><div class="micro-cab"><span class="tipo">Compara</span><span class="titulo">Dos formas de controlar el crecimiento</span><span class="tiempo">15 min</span></div>
-<p><code>max_depth</code> no es la única manera de impedir que un árbol memorice. Repite la validación cruzada cambiando, uno a la vez:</p>
+<p>Ya viste dos caminos: <code>max_depth</code> (pre-poda) y <code>ccp_alpha</code> (post-poda). Prueba los otros dos de la familia de la pre-poda, uno a la vez y con la misma validación cruzada, dejando <code>max_depth=None</code>:</p>
 <ol>
-<li><code>min_samples_leaf</code> (mínimo de viviendas por hoja): prueba 1, 5, 20, 50 dejando <code>max_depth=None</code>.</li>
-<li><code>ccp_alpha</code> (poda por costo-complejidad): prueba 0, 100, 1000, 5000.</li>
+<li><code>min_samples_leaf</code> (mínimo de viviendas por hoja): prueba 1, 5, 20, 50.</li>
+<li><code>max_leaf_nodes</code> (número máximo de hojas): prueba 4, 8, 16, 32.</li>
 </ol>
-<p>Luego responde: ¿los tres caminos llegan a un error parecido? ¿Cuál de los tres le resulta más fácil de defender a un comité: «limité la profundidad a 4», «exigí al menos 20 viviendas por hoja» o «podé con alfa igual a 1 000»?</p>
-<p>Pista: el que se puede traducir a una frase sobre el negocio, no sobre el algoritmo.</p></div>
+<p>Luego responde:</p>
+<ol start="3">
+<li>¿Los cuatro caminos llegan a un error parecido, o alguno es claramente mejor?</li>
+<li>¿Cuál te resulta más fácil de defender ante un comité: «limité la profundidad a 3», «exigí al menos 20 viviendas por hoja», «dejé 8 grupos de avalúo» o «podé con un alfa de 10 000»?</li>
+</ol>
+<p>Pista para la última: gana el que se traduce a una frase sobre el negocio y no sobre el algoritmo. «Dejé 8 grupos de avalúo» es una decisión que un avaluador puede discutir; un alfa, no.</p></div>
 ```
 
 # Parte 5 · Un árbol es inestable; un bosque, menos
@@ -780,6 +938,52 @@ ajustar en un bosque son `max_features` y los que limitan cada árbol
 (`min_samples_leaf`, `max_depth`).
 :::
 
+### El error out-of-bag: validación gratis
+
+El remuestreo con reemplazo deja fuera, en promedio, cerca de un tercio de las
+viviendas en cada árbol. Esas observaciones **no participaron** en ese árbol,
+así que sirven para evaluarlo sin costo adicional: es el error *out-of-bag*
+(OOB), y es una particularidad de los métodos basados en bagging.
+
+```{python}
+#| label: oob
+#| code-summary: "OOB frente a validación cruzada"
+import time
+
+inicio = time.time()
+bosque_oob = RandomForestRegressor(n_estimators=500, oob_score=True,
+                                   random_state=SEMILLA,
+                                   n_jobs=-1).fit(A_train, y_train)
+tiempo_oob = time.time() - inicio
+
+inicio = time.time()
+r2_cv = cross_val_score(
+    RandomForestRegressor(n_estimators=500, random_state=SEMILLA, n_jobs=-1),
+    A_train, y_train, cv=5, scoring="r2")
+tiempo_cv = time.time() - inicio
+
+print(f"R² out-of-bag        : {bosque_oob.oob_score_:.3f}   "
+      f"(entrenando una sola vez, {tiempo_oob:.1f} s)")
+print(f"R² validación cruzada: {r2_cv.mean():.3f} ± {r2_cv.std():.3f}   "
+      f"(entrenando 5 veces, {tiempo_cv:.1f} s)")
+```
+
+::: {.callout-tip appearance="simple"}
+## Cuándo usar OOB y cuándo no
+
+Las dos estimaciones coinciden, y la OOB sale de **un solo entrenamiento**. En
+búsquedas grandes de hiperparámetros eso es una ventaja real de tiempo.
+
+Dos advertencias. Primera: `oob_score_` de `RandomForestRegressor` devuelve
+$R^2$, no RMSE; para otra métrica hay que calcularla con
+`oob_prediction_`. Segunda, y más importante: **el OOB no sirve con datos
+agrupados ni con series temporales**, porque el remuestreo rompe la estructura
+—dos mediciones del mismo edificio, o dos meses consecutivos, pueden quedar una
+dentro y otra fuera de la bolsa. En esos casos hay que usar validación cruzada
+por grupos o por bloques temporales, como se trabaja en el
+[Cuadernillo 5](../05-validacion/cuadernillo-05.qmd).
+:::
+
 # Parte 6 · El marcador final
 
 Agregamos la regresión lineal del Cuadernillo 3 para que la comparación tenga
@@ -875,6 +1079,10 @@ Dos lecciones, las dos de este curso:
    seis variables y una relación dominada por el área, la regresión lineal
    sigue siendo competitiva. La complejidad se justifica con evidencia, no con
    el nombre del método.
+
+Con una salvedad importante, que se resuelve en la hoja de referencia del
+final: este bosque corrió **con sus valores por defecto**. Ajustarle los
+hiperparámetros cambia el resultado, y entonces sí se despega.
 :::
 
 ```{=html}
@@ -993,7 +1201,138 @@ quintil, donde la regresión lineal —que impone una tendencia en lugar de
 promediar vecinos— se sostiene algo mejor. El MAE está dominado por los cuatro
 primeros, donde el bosque es claramente superior.
 
-# Parte 8 · Lo que el bosque no puede hacer
+# Parte 8 · SHAP: por qué *este* avalúo
+
+La importancia por permutación responde una pregunta **global**: qué variables
+le importan al modelo en conjunto. Pero el comité no pregunta eso. Pregunta:
+
+> *«¿Por qué a este apartamento le pusiste 331 millones y no 900?»*
+
+Esa es una pregunta **local**, sobre una predicción concreta, y los valores
+SHAP la responden. La idea viene de teoría de juegos: se reparte la diferencia
+entre la predicción y el promedio general entre todas las variables, de modo
+que cada una recibe lo que aporta en promedio sobre todos los órdenes posibles
+de entrada.
+
+```{python}
+#| label: shap-instalar
+#| code-summary: "Instalar shap si hace falta (en Colab, la primera vez)"
+try:
+    import shap
+except ImportError:                                   # pragma: no cover
+    import subprocess, sys
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "shap"],
+                   check=True)
+    import shap
+
+print("shap", shap.__version__)
+```
+
+```{python}
+#| label: shap-calcular
+#| code-summary: "Calcular los valores SHAP del bosque"
+# TreeExplainer aprovecha la estructura de los árboles: es exacto y rápido.
+# Con 200 viviendas basta para los gráficos y la clase no se queda esperando.
+muestra = A_test.iloc[:200]
+explicador = shap.TreeExplainer(bosque)
+valores_shap = explicador(muestra)
+
+print(f"valores SHAP: {valores_shap.values.shape[0]} viviendas "
+      f"× {valores_shap.values.shape[1]} variables")
+print(f"valor base (el promedio de entrenamiento): "
+      f"{valores_shap.base_values[0]:.1f} mm")
+```
+
+### La propiedad que hay que entender antes de mirar ningún gráfico
+
+```{python}
+#| label: shap-aditividad
+#| code-summary: "Base + aportes = predicción, exactamente"
+i = 0
+aportes = pd.Series(valores_shap.values[i], index=A_test.columns)
+
+print("vivienda:", X_test.iloc[i].to_dict())
+print(f"precio real: {y_test.iloc[i]:.0f} mm\n")
+print(f"valor base (promedio)        : {valores_shap.base_values[i]:8.1f} mm")
+for nombre, aporte in aportes[aportes.abs() > 1].sort_values(key=abs,
+                                                             ascending=False).items():
+    print(f"  {nombre:<24s}       {aporte:+8.1f} mm")
+print(f"{'suma':<31s}: {valores_shap.base_values[i] + aportes.sum():8.1f} mm")
+print(f"{'predicción del bosque':<31s}: {bosque.predict(A_test.iloc[[i]])[0]:8.1f} mm")
+```
+
+::: {.callout-important appearance="simple"}
+## El modelo base reaparece
+
+El **valor base** de SHAP es el promedio de entrenamiento: el mismo modelo base
+de la Parte 2, el mismo contra el que compara el $R^2$ de la Parte 1. Los
+valores SHAP no explican la predicción en abstracto: explican **cuánto se
+aleja del promedio y por culpa de qué**.
+
+Para este apartamento, ser de 60 m² le resta casi 500 millones respecto del
+inmueble promedio de Bogotá. Esa frase sí se puede llevar a un comité, y es
+auditable: la suma cuadra con la predicción al decimal.
+:::
+
+```{python}
+#| label: shap-cascada
+#| code-summary: "El desglose de una predicción"
+#| fig-cap: "Desde el promedio general hasta la predicción de esta vivienda. Cada barra es el aporte de una variable: a la izquierda resta, a la derecha suma."
+shap.plots.waterfall(valores_shap[i], max_display=8, show=False)
+plt.tight_layout()
+plt.show()
+```
+
+Los rótulos de `shap` vienen en inglés y conviene traducirlos una vez:
+**$E[f(X)]$** abajo a la derecha es el valor base, el promedio; **$f(x)$**
+arriba es la predicción de esta vivienda; a la izquierda de cada barra aparece
+el valor que tomó la variable (`60 = area_m2`); y *«other features»* agrupa los
+aportes pequeños restantes. Rojo suma, azul resta.
+
+```{python}
+#| label: shap-enjambre
+#| code-summary: "Todas las viviendas a la vez"
+#| fig-cap: "Cada punto es una vivienda. La posición horizontal es el aporte de esa variable a su avalúo; el color, si el valor de la variable era alto o bajo. Lo que se ve en el área es la relación creciente: área grande (rojo) empuja el precio hacia arriba."
+shap.plots.beeswarm(valores_shap, max_display=8, show=False)
+plt.tight_layout()
+plt.show()
+```
+
+El gráfico de enjambre reúne las dos cosas: a la izquierda, el **orden de
+importancia** (las variables van de mayor a menor aporte promedio), y dentro
+de cada fila, la **dirección y la forma** de su efecto. El área no solo es la
+variable que más pesa: se ve que su efecto es monótono y que se abre en
+abanico, es decir, que en los inmuebles grandes el aporte varía muchísimo más.
+
+::: {.callout-warning appearance="simple"}
+## SHAP explica el modelo, no el mercado
+
+Un valor SHAP dice *«el modelo bajó su predicción 500 millones por el área»*.
+No dice *«el área causa que el precio baje 500 millones»*. Si dos variables
+están correlacionadas —área y número de cuartos lo están— SHAP reparte el
+crédito entre ellas de una manera que depende del modelo ajustado, no de la
+realidad económica.
+
+La diferencia importa cuando alguien quiere usar el modelo para **decidir
+intervenciones** («entonces si añado un garaje, el inmueble sube 66 millones»).
+Eso es una afirmación causal, y ni SHAP ni el bosque la respaldan. Sirven para
+auditar y explicar predicciones; para efectos causales hacen falta diseño e
+inferencia, que es el terreno del modelo estadístico.
+:::
+
+```{=html}
+<div class="micro detecta"><div class="micro-cab"><span class="tipo">Detecta</span><span class="titulo">Auditar un avalúo con SHAP</span><span class="tiempo">15 min</span></div>
+<p>Busca en el conjunto de prueba la vivienda donde el bosque más se equivoca y dibuja su gráfico de cascada:</p>
+<pre><code>peor = int((bosque.predict(A_test) - y_test).abs().idxmax())</code></pre>
+<ol>
+<li>¿Qué variable es la principal responsable de la predicción equivocada?</li>
+<li>Mirando los datos de esa vivienda, ¿es un error del modelo o un dato atípico (o quizá erróneo) de la base?</li>
+<li>Si tuvieras que explicarle a un propietario por qué el sistema le asignó ese valor, ¿qué dos frases usarías?</li>
+</ol>
+<p>Esta es, en la práctica, la utilidad principal de SHAP: no es un adorno del informe, es la herramienta con la que se revisan las predicciones que alguien va a reclamar.</p></div>
+```
+
+# Parte 9 · Lo que el bosque no puede hacer
 
 Antes de cerrar, una limitación que no aparece en ninguna métrica y que
 sorprende a quien llega al bosque creyendo que reemplaza al modelo estadístico.
@@ -1065,6 +1404,148 @@ una elección que depende de la pregunta, y saber cuál hacer es el objetivo de
 este curso.
 :::
 
+## Hoja de referencia
+
+### Ventajas y desventajas de los árboles y los bosques
+
+::: {.panel-tabset}
+
+## Ventajas
+
+- **Seleccionan predictores solos.** No hace falta decidir de antemano qué
+  variables entran: las que no aportan sencillamente no se usan para cortar.
+- **Sirven igual para regresión y para clasificación**, cambiando solo el
+  criterio de corte.
+- **No son paramétricos**: no exigen linealidad, ni normalidad de los
+  residuos, ni homocedasticidad. No hay supuestos que verificar.
+- **No necesitan estandarización.** Un corte en «área ≤ 177» no cambia si el
+  área está en metros o en centímetros. Por eso en este cuadernillo solo se
+  escaló para la regresión lineal.
+- **Resisten bien los valores atípicos**, porque trabajan con cortes y no con
+  distancias ni con sumas sobre toda la muestra.
+- **Encuentran no linealidades e interacciones sin que se las especifique**,
+  que es justo lo que en un modelo lineal hay que escribir a mano.
+- **El error out-of-bag** da una estimación de validación sin costo extra
+  (salvo en datos agrupados o temporales).
+- **Escalan bien** a muchas observaciones y se paralelizan sin esfuerzo.
+
+## Desventajas
+
+- **El bosque pierde la interpretabilidad del árbol único.** Un árbol se
+  dibuja; 500, no. De ahí que hagan falta la importancia por permutación y
+  SHAP.
+- **Favorecen a las variables continuas y a las categóricas con muchos
+  niveles**, porque tienen más puntos de corte posibles y alguno acierta por
+  azar. Es el sesgo que se ve en `feature_importances_`.
+- **Al cortar, discretizan**: una variable continua se usa a través de
+  umbrales, y entre dos umbrales el modelo no distingue nada.
+- **No extrapolan.** Fuera del rango observado devuelven un valor constante
+  (Parte 9).
+- **Predicen por escalones**, lo que produce saltos grandes entre casos casi
+  idénticos.
+- **No dan inferencia**: no hay errores estándar, ni intervalos de confianza
+  de un efecto, ni pruebas de hipótesis.
+
+:::
+
+### Los hiperparámetros, agrupados por lo que controlan
+
+| Hiperparámetro | Qué controla | Valor por defecto | Comentario |
+|---|---|---|---|
+| `n_estimators` | Número de árboles del bosque | `100` | Solo en el bosque. **No sobreajusta**: más árboles cuestan tiempo, no precisión |
+| `criterion` | Cómo se mide la homogeneidad al cortar | `squared_error` | En regresión, sumas de cuadrados. En clasificación, `gini` o `entropy` |
+| `max_depth` | Profundidad máxima | `None` (sin límite) | Pre-poda. El más fácil de explicar |
+| `min_samples_split` | Mínimo de observaciones para que un nodo pueda dividirse | `2` | Pre-poda. Decimal = fracción del total |
+| `min_samples_leaf` | Mínimo de observaciones en cada hoja resultante | `1` | Pre-poda. Subirlo suaviza mucho las predicciones |
+| `max_leaf_nodes` | Número máximo de hojas | `None` | Pre-poda. El más legible: «cuántos grupos de avalúo quiero» |
+| `min_impurity_decrease` | Mejora mínima exigida para aceptar una división | `0.0` | Pre-poda |
+| `ccp_alpha` | Intensidad de la poda por costo-complejidad | `0.0` | **Post-poda**. A mayor alfa, más recorte |
+| `max_features` | Cuántas variables se consideran en cada corte | `1.0` (todas) | **Clave en el bosque**: bajarlo decorrelaciona los árboles. `"sqrt"`, `"log2"`, un entero o una fracción |
+| `bootstrap` | Si cada árbol se entrena sobre un remuestreo | `True` | Solo en el bosque. Con `False` se pierde el OOB |
+| `max_samples` | Tamaño de cada remuestreo | `None` (igual al total) | Solo con `bootstrap=True` |
+| `oob_score` | Si se calcula el $R^2$ out-of-bag | `False` | Solo en el bosque; añade algo de tiempo |
+| `n_jobs` | Núcleos usados | `None` (uno) | `-1` usa todos. En el bosque reduce mucho el tiempo |
+| `random_state` | Semilla | `None` | **Fíjala siempre.** Sin ella los resultados no se reproducen |
+
+: Hiperparámetros de `DecisionTreeRegressor` y `RandomForestRegressor` {.striped tbl-colwidths="[20,32,16,32]"}
+
+::: {.callout-tip appearance="simple"}
+## Cuáles ajustar, y en qué orden
+
+No se ajustan todos. En la práctica, y por orden de rendimiento:
+
+1. **`max_features`** — en el bosque es el que más mueve el resultado, porque
+   es lo que hace que los árboles se parezcan poco entre sí.
+2. **`min_samples_leaf`** o **`max_depth`** — uno de los dos, no los dos: hacen
+   el mismo trabajo por caminos distintos.
+3. **`n_estimators`** — se sube hasta que la curva se aplane y se deja ahí.
+4. El resto, en su valor por defecto, salvo que haya una razón concreta.
+
+Y una advertencia que viene del material original: **los hiperparámetros
+interactúan**, así que no se ajustan de uno en uno de forma secuencial. El
+análisis individual sirve para entender el efecto e identificar el rango de
+interés; la búsqueda final se hace con `GridSearchCV` o `RandomizedSearchCV`
+sobre combinaciones.
+:::
+
+```{python}
+#| label: grid-search
+#| code-summary: "La búsqueda final, sobre combinaciones y no de uno en uno"
+from sklearn.model_selection import GridSearchCV, KFold
+
+# El mismo esquema de validación para la búsqueda y para la referencia:
+# comparar un modelo ajustado con 5 pliegues contra otro medido con un
+# esquema distinto sería exactamente el error que denuncia este cuadernillo.
+cv_hiper = KFold(n_splits=5, shuffle=True, random_state=SEMILLA)
+
+por_defecto = -cross_val_score(
+    RandomForestRegressor(n_estimators=200, random_state=SEMILLA, n_jobs=-1),
+    A_train, y_train, cv=cv_hiper, scoring="neg_root_mean_squared_error")
+
+rejilla_hiper = {
+    "max_features": [0.3, 0.5, 0.8, 1.0],
+    "min_samples_leaf": [1, 3, 5, 10],
+}
+busqueda = GridSearchCV(
+    RandomForestRegressor(n_estimators=200, random_state=SEMILLA, n_jobs=-1),
+    rejilla_hiper, cv=cv_hiper, scoring="neg_root_mean_squared_error", n_jobs=-1)
+busqueda.fit(A_train, y_train)
+
+print(f"bosque por defecto : RMSE {por_defecto.mean():.1f} ± {por_defecto.std():.1f} mm")
+print(f"bosque ajustado    : RMSE {-busqueda.best_score_:.1f} mm "
+      f"con {busqueda.best_params_}")
+print(f"\nen el conjunto de prueba:")
+print(f"  bosque por defecto: "
+      f"{final.loc['Random Forest', 'RMSE']:.1f} mm")
+print(f"  bosque ajustado   : "
+      f"{root_mean_squared_error(y_test, busqueda.best_estimator_.predict(A_test)):.1f} mm")
+print(f"  regresión lineal  : {final.loc['Regresión lineal', 'RMSE']:.1f} mm")
+```
+
+::: {.callout-important appearance="simple"}
+## Esto corrige el empate de la Parte 6
+
+El marcador de la Parte 6 comparaba el bosque **con sus valores por defecto**
+contra la regresión lineal, y daba empate. Con los hiperparámetros ajustados el
+bosque sí se despega: el RMSE de validación cruzada baja de forma apreciable, y
+en prueba pasa a quedar **por debajo** del de la regresión lineal, que hasta
+ahora lo superaba en esa métrica.
+
+Dos lecturas, y las dos cuentan:
+
+1. **Comparar un modelo ajustado contra otro sin ajustar no es una comparación.**
+   Si se afina el bosque, hay que afinar también la regularización de la
+   lineal. De lo contrario se está midiendo quién tuvo mejor configuración, no
+   qué familia de modelos sirve.
+2. **Aquí la complejidad sí se ganó su lugar, pero hubo que trabajarla.** El
+   bosque no llegó mejor «de fábrica»: llegó mejor después de una búsqueda que
+   cuesta tiempo de cómputo y que hay que documentar en la entrega.
+
+Fíjate además en la combinación ganadora: el modelo prefiere **hojas con varias
+viviendas** en lugar de hojas de una sola. Es la misma lección de la poda, ahora
+dentro del bosque.
+:::
+
 ```{=html}
 <div class="recordar">
 <p>Lo que debes recordar</p>
@@ -1075,8 +1556,13 @@ este curso.
 <li>El árbol elige cada corte <b>minimizando la suma de cuadrados</b> dentro de los grupos resultantes. El criterio es MSE; Gini y entropía son el equivalente para clasificación.</li>
 <li>Un árbol sin podar memoriza: baja el error de entrenamiento casi a cero y empeora en prueba. La profundidad se elige con <b>validación cruzada</b>, nunca mirando el conjunto de prueba.</li>
 <li>Cuando varias configuraciones empatan dentro de la dispersión, <b>se toma la más simple</b>.</li>
+<li>Hay dos familias de poda: <b>pre-poda</b> (<code>max_depth</code>, <code>min_samples_leaf</code>, <code>max_leaf_nodes</code>) detiene el crecimiento antes; <b>post-poda</b> (<code>ccp_alpha</code>) deja crecer el árbol y recorta después. Llegan a errores parecidos; elige la que puedas explicar.</li>
 <li>Un solo árbol es inestable, y lo es más donde hay menos datos. <b>Random Forest promedia muchos árboles</b> entrenados en remuestreos y con variables sorteadas en cada corte; los ruidos individuales se cancelan.</li>
-<li><code>n_estimators</code> no sobreajusta: más árboles solo cuestan tiempo. Lo que sí hay que ajustar es <code>max_features</code> y los límites de cada árbol.</li>
+<li>Promediar reduce la <b>varianza</b>, no el <b>sesgo</b>. Si el modelo se equivoca por falta de datos, más árboles no lo arreglan.</li>
+<li><code>n_estimators</code> no sobreajusta: más árboles solo cuestan tiempo. Lo que sí hay que ajustar es <code>max_features</code> y los límites de cada árbol, y <b>en combinación</b>, no de uno en uno.</li>
+<li>El <b>error out-of-bag</b> da una validación casi gratis en bagging, pero no sirve con datos agrupados ni con series temporales.</li>
+<li>La importancia es <b>global</b>; los <b>valores SHAP</b> son <b>locales</b>: descomponen una predicción concreta en aportes que suman exactamente la diferencia con el promedio. Es la herramienta para auditar un avalúo que alguien va a reclamar.</li>
+<li>SHAP explica <b>el modelo</b>, no el mercado. Un aporte no es un efecto causal.</li>
 <li>Reporta siempre la <b>dispersión</b> de la validación cruzada. Sin ella no se puede declarar un ganador, y aquí la lineal y el bosque empatan.</li>
 <li>Usa <b>importancia por permutación</b>, no solo <code>feature_importances_</code>: la de impureza favorece a las variables continuas y se calcula en entrenamiento.</li>
 <li>Los modelos de árboles <b>no extrapolan</b>. Fuera del rango observado devuelven un valor constante.</li>
@@ -1153,7 +1639,57 @@ extract_fit_parsnip(final) |> vip()
 En R, `select_by_one_std_err()` implementa directamente la regla de parsimonia
 de la Parte 4, y `ranger` calcula la importancia por permutación si se le pide
 en `set_engine()`. El equivalente de `permutation_importance()` de
-`scikit-learn` sobre un modelo ya entrenado es `vip::vi_permute()`.
+`scikit-learn` sobre un modelo ya entrenado es `vip::vi_permute()`. Para SHAP,
+el paquete es `treeshap` o `fastshap`.
+
+## Apéndice · Automatizar la comparación con PyCaret
+
+Todo lo que hicimos a mano —partir, preprocesar, entrenar varios modelos,
+comparar métricas— lo automatiza **PyCaret** en tres líneas:
+
+```python
+# Este bloque NO se ejecuta al generar el cuadernillo. Ver la advertencia.
+from pycaret.regression import setup, compare_models, tune_model, plot_model
+
+configuracion = setup(data=vivienda, target="precio_mm",
+                      train_size=0.75, session_id=42,
+                      ignore_features=["valor_venta", "barrio_comun"])
+
+mejor = compare_models()          # entrena ~20 modelos y los ordena por métrica
+bosque = tune_model(mejor, optimize="MAE", n_iter=50)
+
+plot_model(bosque, plot="residuals")
+plot_model(bosque, plot="feature")
+plot_model(bosque, plot="error")
+```
+
+`compare_models()` es, literalmente, el torneo de modelos automatizado: aplica
+el mismo preprocesamiento y la misma partición a una veintena de algoritmos y
+devuelve la tabla ordenada con MAE, MSE, RMSE, R², RMSLE y MAPE, más el tiempo
+de entrenamiento de cada uno.
+
+::: {.callout-warning appearance="simple"}
+## Dos advertencias, una técnica y una de criterio
+
+**Técnica.** PyCaret fija versiones antiguas de `pandas` y `scikit-learn`, así
+que **no convive con el entorno de este curso**: instalarlo en el mismo
+ambiente rompe los demás cuadernillos. Si quieres probarlo, hazlo en un entorno
+virtual aparte o en una sesión nueva de Colab dedicada solo a eso, y reinicia
+el entorno de ejecución después de instalarlo.
+
+**De criterio, y es la que importa.** `compare_models()` entrega un ranking en
+treinta segundos, y ahí está el riesgo: entrega un ganador **sin la dispersión
+entre pliegues**, de modo que no se puede saber si la diferencia entre el
+primero y el tercero es real o ruido. En este cuadernillo la distancia entre
+el bosque y la regresión lineal fue de 0.06 desviaciones —un empate— y una
+tabla ordenada habría puesto a uno encima del otro como si significara algo.
+
+Úsalo como **exploración rápida** para saber en qué familia de modelos vale la
+pena invertir tiempo. La decisión final, y lo que se entrega en las
+actividades, se sustenta con la comparación manual: misma partición, misma
+semilla, mismo preprocesamiento, modelo base compitiendo y dispersión
+reportada.
+:::
 
 ## Conexión con la Actividad 2
 
@@ -1185,12 +1721,23 @@ existe: **dónde poner el umbral**.
 
 - @james2023, capítulo 8 — árboles, bagging y bosques aleatorios, con la
   notación de este cuadernillo.
+- @breiman1984 — el libro original de CART, donde aparecen el criterio de corte
+  y la poda por costo-complejidad que usa `ccp_alpha`.
 - @breiman2001rf — el artículo original de Random Forest.
 - @hastie2009, sección 9.2 — el criterio de corte por sumas de cuadrados,
   desarrollado formalmente.
+- @strobl2007 — la demostración del sesgo de la importancia por impureza hacia
+  las variables continuas y las categóricas con muchos niveles.
+- @lundberg2017 — el artículo que introduce los valores SHAP.
+- @molnar2022 — libro abierto sobre interpretabilidad: importancia por
+  permutación, SHAP, dependencia parcial y sus límites.
 - @breiman2001 y @shmueli2010 — las dos culturas del modelamiento y la
   distinción entre explicar y predecir.
 - [scikit-learn · Decision Trees](https://scikit-learn.org/stable/modules/tree.html) —
   documentación y advertencias prácticas.
 - [scikit-learn · Permutation importance](https://scikit-learn.org/stable/modules/permutation_importance.html) —
   incluye el detalle de los sesgos de la importancia por impureza.
+- [Documentación de SHAP](https://shap.readthedocs.io/) — galería de gráficos y
+  guía de `TreeExplainer`.
+- [Documentación de PyCaret · Regresión](https://pycaret.gitbook.io/docs/get-started/quickstart) —
+  para el apéndice, en un entorno aparte.

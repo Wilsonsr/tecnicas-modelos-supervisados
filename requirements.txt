@@ -18,3 +18,10 @@ plotly>=5.18
 statsmodels>=0.14
 openpyxl>=3.1
 jupyter>=1.0
+
+# Interpretabilidad (Cuadernillo 3c, Parte 8). El cuadernillo lo instala solo
+# si no está, de modo que funcione igual en Colab.
+shap>=0.44
+
+# PyCaret NO se incluye a proposito: fija versiones antiguas de pandas y de
+# scikit-learn y rompe el resto del entorno. Ver el apendice del Cuadernillo 3c.
