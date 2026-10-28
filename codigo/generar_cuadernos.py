@@ -48,6 +48,7 @@ CUADERNILLOS = [
     ("02-preprocesamiento/cuadernillo-02.qmd",  "cuadernillo-02-preparacion.ipynb",    "02-preprocesamiento/cuadernillo-02.html"),
     ("03-regresion/cuadernillo-03.qmd",         "cuadernillo-03-regresion.ipynb",      "03-regresion/cuadernillo-03.html"),
     ("03-regresion/torneo-de-modelos.qmd",      "cuadernillo-03b-torneo.ipynb",       "03-regresion/torneo-de-modelos.html"),
+    ("03-regresion/arboles-y-bosques.qmd",      "cuadernillo-03c-bosques.ipynb",      "03-regresion/arboles-y-bosques.html"),
     ("04-clasificacion/cuadernillo-04.qmd",     "cuadernillo-04-clasificacion.ipynb",  "04-clasificacion/cuadernillo-04.html"),
     ("05-validacion/cuadernillo-05.qmd",        "cuadernillo-05-validacion.ipynb",     "05-validacion/cuadernillo-05.html"),
 ]

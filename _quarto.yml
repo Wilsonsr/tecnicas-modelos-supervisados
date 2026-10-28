@@ -54,6 +54,8 @@ website:
             href: 03-regresion/cuadernillo-03.qmd
           - text: "3b · Torneo de modelos de regresión"
             href: 03-regresion/torneo-de-modelos.qmd
+          - text: "3c · Métricas, árboles y bosques"
+            href: 03-regresion/arboles-y-bosques.qmd
           - text: "4 · Clasificar para tomar decisiones"
             href: 04-clasificacion/cuadernillo-04.qmd
           - text: "5 · ¿Podemos confiar en nuestro modelo?"
@@ -98,6 +100,7 @@ website:
         contents:
           - 03-regresion/cuadernillo-03.qmd
           - 03-regresion/torneo-de-modelos.qmd
+          - 03-regresion/arboles-y-bosques.qmd
           - 04-clasificacion/cuadernillo-04.qmd
       - section: "Unidad 3 · Validación y diagnóstico"
         contents:
